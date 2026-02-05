@@ -4,7 +4,7 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace DMS.Language
+namespace PicoShot.Localization
 {
     public class LocalizationTextEditorPopup : EditorWindow
     {

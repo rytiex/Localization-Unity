@@ -8,18 +8,17 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Text.RegularExpressions;
 using TMPro;
-using MessagePack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor.Compilation;
+using PicoShot.Localization.Data;
 
-namespace DMS.Language
+namespace PicoShot.Localization
 {
     public class LocalizationEditor : EditorWindow
     {
         #region Variables
 
-        private const bool _compact = true;
         private bool _hasUnsavedChanges;
         private bool _showStatusSection = true;
         private bool _showTestingTools = true;
@@ -60,8 +59,6 @@ namespace DMS.Language
         private GameObject _selectedGameObject;
         private Color _dragAreaColor;
         private readonly HttpClient _httpClient = new();
-        private static readonly MessagePackSerializerOptions MsgpackOptions =
-            MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
         private enum Tab
         {
@@ -157,59 +154,51 @@ namespace DMS.Language
             EditorGUILayout.Space();
             DrawSaveButton();
 
+            HandleKeyboardInput();
+        }
+
+        private void HandleKeyboardInput()
+        {
             if (Event.current.type != EventType.KeyDown || string.IsNullOrEmpty(_selectedKey)) return;
+            
             bool ctrlPressed = (Event.current.modifiers & EventModifiers.Control) != 0;
             var index = _keys.IndexOf(_selectedKey);
+            
             switch (Event.current.keyCode)
             {
                 case KeyCode.UpArrow:
-                    if (ctrlPressed)
+                    if (ctrlPressed && index > 0)
                     {
-                        if (index > 0)
-                        {
-                            _keys.RemoveAt(index);
-                            _keys.Insert(index - 1, _selectedKey);
-                            _hasUnsavedChanges = true;
-                        }
+                        _keys.RemoveAt(index);
+                        _keys.Insert(index - 1, _selectedKey);
+                        _hasUnsavedChanges = true;
                     }
-                    else
+                    else if (index > 0)
                     {
-                        if (index > 0)
-                        {
-                            _selectedKey = _keys[index - 1];
-                        }
+                        _selectedKey = _keys[index - 1];
                     }
-
                     Event.current.Use();
                     Repaint();
                     break;
 
                 case KeyCode.DownArrow:
-                    if (ctrlPressed)
+                    if (ctrlPressed && index < _keys.Count - 1)
                     {
-                        if (index < _keys.Count - 1)
-                        {
-                            _keys.RemoveAt(index);
-                            _keys.Insert(index + 1, _selectedKey);
-                            _hasUnsavedChanges = true;
-                        }
+                        _keys.RemoveAt(index);
+                        _keys.Insert(index + 1, _selectedKey);
+                        _hasUnsavedChanges = true;
                     }
-                    else
+                    else if (index < _keys.Count - 1)
                     {
-                        if (index < _keys.Count - 1)
-                        {
-                            _selectedKey = _keys[index + 1];
-                        }
+                        _selectedKey = _keys[index + 1];
                     }
-
                     Event.current.Use();
                     Repaint();
                     break;
 
                 case KeyCode.Backspace:
                 case KeyCode.Delete:
-                    if (_pendingDelete)
-                        return;
+                    if (_pendingDelete) return;
                     _pendingDelete = true;
                     EditorApplication.delayCall += () =>
                     {
@@ -218,7 +207,6 @@ namespace DMS.Language
                         {
                             DeleteKey(_selectedKey);
                         }
-
                         _pendingDelete = false;
                     };
                     Event.current.Use();
@@ -226,21 +214,27 @@ namespace DMS.Language
                     break;
 
                 case KeyCode.T:
-                    if (!ctrlPressed) return;
-                    _ = TranslateAndFill(_selectedKey);
-                    Event.current.Use();
+                    if (ctrlPressed)
+                    {
+                        _ = TranslateAndFill(_selectedKey);
+                        Event.current.Use();
+                    }
                     break;
 
                 case KeyCode.R:
-                    if (!ctrlPressed) return;
-                    RenameKey(_selectedKey);
-                    Event.current.Use();
+                    if (ctrlPressed)
+                    {
+                        RenameKey(_selectedKey);
+                        Event.current.Use();
+                    }
                     break;
 
                 case KeyCode.S:
-                    if (!ctrlPressed) return;
-                    SaveLanguages();
-                    Event.current.Use();
+                    if (ctrlPressed)
+                    {
+                        SaveLanguages();
+                        Event.current.Use();
+                    }
                     break;
 
                 case KeyCode.Escape:
@@ -265,6 +259,7 @@ namespace DMS.Language
         private void DrawTabs()
         {
             EditorGUILayout.BeginHorizontal();
+            
             GUI.backgroundColor = _currentTab == Tab.Languages ? Color.gray : Color.white;
             if (GUILayout.Button("Languages", EditorStyles.toolbarButton))
                 _currentTab = Tab.Languages;
@@ -306,14 +301,13 @@ namespace DMS.Language
                 _languageFilter = "";
                 GUI.FocusControl(null);
             }
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Available Languages:", EditorStyles.boldLabel);
 
             _languageScrollPos = EditorGUILayout.BeginScrollView(_languageScrollPos);
-            var filteredLanguages = LocalizationManager.LanguageNames
+            var filteredLanguages = LanguageDefinitions.LanguageNames
                 .Where(lang => string.IsNullOrEmpty(_languageFilter) ||
                                lang.Value.ToLower().Contains(_languageFilter.ToLower()) ||
                                lang.Key.ToLower().Contains(_languageFilter.ToLower()))
@@ -325,6 +319,7 @@ namespace DMS.Language
 
                 bool isEnglish = lang.Key == "en";
                 bool isSelected = _languageCodes.Contains(lang.Key);
+                
                 if (isEnglish)
                 {
                     EditorGUI.BeginDisabledGroup(true);
@@ -337,13 +332,9 @@ namespace DMS.Language
                     if (newSelection != isSelected)
                     {
                         if (newSelection)
-                        {
                             AddLanguage(lang.Key);
-                        }
                         else
-                        {
                             DeleteLanguage(lang.Key);
-                        }
                     }
                 }
 
@@ -355,8 +346,6 @@ namespace DMS.Language
             }
 
             EditorGUILayout.EndScrollView();
-
-            EditorGUILayout.Space();
             EditorGUILayout.LabelField($"Selected Languages: {_languageCodes.Count}", EditorStyles.boldLabel);
             EditorGUILayout.EndVertical();
         }
@@ -379,6 +368,7 @@ namespace DMS.Language
         private void DrawKeyDetailsPanel()
         {
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+            
             if (!string.IsNullOrEmpty(_selectedKey))
             {
                 EditorGUILayout.LabelField($"Key Details: {_selectedKey}", EditorStyles.boldLabel);
@@ -387,250 +377,12 @@ namespace DMS.Language
                 if (_languageData.TryGetValue(_selectedKey, out var text))
                 {
                     if (text["en"] is List<string>)
-                    {
                         DrawArrayKeyContent(_selectedKey);
-                    }
                     else
-                    {
                         DrawStringKeyContent(_selectedKey);
-                    }
 
                     EditorGUILayout.Space();
-
-                    EditorGUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Rename", GUILayout.Width(80)))
-                    {
-                        RenameKey(_selectedKey);
-                    }
-
-                    if (GUILayout.Button("Translation Options", GUILayout.Width(120)))
-                    {
-                        GenericMenu menu = new GenericMenu();
-
-                        menu.AddItem(new GUIContent("Translate with DeepL"), false,
-                            () => { _ = TranslateAndFill(_selectedKey); });
-
-                        menu.AddItem(new GUIContent("Copy AI Translate Prompt"), false, () =>
-                        {
-                            if (!string.IsNullOrEmpty(_selectedKey) &&
-                                _languageData.TryGetValue(_selectedKey, out var keyData))
-                            {
-                                string jsonData = JsonConvert.SerializeObject(keyData, Formatting.Indented);
-                                string prompt =
-                                    "Please translate the following language key data from English to all other languages.\n" +
-                                    "Only fill in the fields that are empty (leave existing translations unchanged).\n" +
-                                    "Return only the translated JSON data without any additional text.\n\n" +
-                                    jsonData;
-                                EditorGUIUtility.systemCopyBuffer = prompt;
-                                ShowNotification(new GUIContent("Translation prompt copied to clipboard!"));
-                            }
-                            else
-                            {
-                                ShowNotification(new GUIContent("No key selected or data not found."));
-                            }
-                        });
-
-                        menu.AddItem(new GUIContent("Import JSON Data from Clipboard"), false, () =>
-                        {
-                            if (!string.IsNullOrEmpty(_selectedKey) && _languageData.ContainsKey(_selectedKey))
-                            {
-                                string pastedText = EditorGUIUtility.systemCopyBuffer;
-                                try
-                                {
-                                    bool isSelectedKeyArray = _languageData[_selectedKey]["en"] is List<string>;
-
-                                    JObject jsonObj = JObject.Parse(pastedText);
-                                    if (jsonObj == null)
-                                    {
-                                        ShowNotification(new GUIContent("Pasted data is not valid JSON."));
-                                        return;
-                                    }
-
-                                    var newData = new Dictionary<string, object>();
-                                    foreach (var prop in jsonObj.Properties())
-                                    {
-                                        if (prop.Value is JArray jArray && isSelectedKeyArray)
-                                        {
-                                            newData[prop.Name] = jArray.ToObject<List<string>>();
-                                        }
-                                        else if (prop.Value.Type == JTokenType.String ||
-                                                 prop.Value.Type == JTokenType.Integer ||
-                                                 prop.Value.Type == JTokenType.Float)
-                                        {
-                                            newData[prop.Name] = prop.Value.ToString();
-                                        }
-                                        else
-                                        {
-                                            if (isSelectedKeyArray)
-                                            {
-                                                try
-                                                {
-                                                    if (prop.Value.ToString().StartsWith("[") && prop.Value.ToString().EndsWith("]"))
-                                                    {
-                                                        var arrayValues = JArray.Parse(prop.Value.ToString());
-                                                        newData[prop.Name] = arrayValues.ToObject<List<string>>();
-                                                    }
-                                                    else
-                                                    {
-                                                        EditorUtility.DisplayDialog("Type Mismatch",
-                                                            $"The value for '{prop.Name}' is not an array but the key is an array type.", "OK");
-                                                        continue;
-                                                    }
-                                                }
-                                                catch
-                                                {
-                                                    EditorUtility.DisplayDialog("Type Mismatch",
-                                                        $"Failed to convert '{prop.Name}' to an array. Skipping this language.", "OK");
-                                                    continue;
-                                                }
-                                            }
-                                            else
-                                            {
-                                                newData[prop.Name] = prop.Value.ToString();
-                                            }
-                                        }
-                                    }
-
-                                    int userChoice = EditorUtility.DisplayDialogComplex(
-                                        "Import Data",
-                                        "Do you want to merge the new data with the existing one, or replace it completely?",
-                                        "Merge",
-                                        "Cancel",
-                                        "Replace"
-                                    );
-
-                                    switch (userChoice)
-                                    {
-                                        case 0: // Merge
-                                            MergeImportedData(_selectedKey, newData, isSelectedKeyArray);
-                                            ShowNotification(new GUIContent("Data merged successfully."));
-                                            break;
-
-                                        case 2: // Replace
-                                            if (isSelectedKeyArray)
-                                            {
-                                                foreach (var lang in newData.Keys)
-                                                {
-                                                    if (!(newData[lang] is List<string>))
-                                                    {
-                                                        if (newData[lang] is string strValue)
-                                                        {
-                                                            newData[lang] = new List<string> { strValue };
-                                                        }
-                                                        else
-                                                        {
-                                                            try
-                                                            {
-                                                                var jToken = JToken.FromObject(newData[lang]);
-                                                                newData[lang] = jToken.ToObject<List<string>>();
-                                                            }
-                                                            catch
-                                                            {
-                                                                newData[lang] = new List<string>();
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            else
-                                            {
-                                                foreach (var lang in newData.Keys.ToList())
-                                                {
-                                                    if (!(newData[lang] is string))
-                                                    {
-                                                        if (newData[lang] is List<string> listValue && listValue.Count > 0)
-                                                        {
-                                                            newData[lang] = string.Join(", ", listValue);
-                                                        }
-                                                        else
-                                                        {
-                                                            newData[lang] = newData[lang]?.ToString() ?? "";
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            var originalKeys = new HashSet<string>(_languageData[_selectedKey].Keys);
-                                            foreach (var lang in originalKeys)
-                                            {
-                                                if (!newData.ContainsKey(lang))
-                                                {
-                                                    if (isSelectedKeyArray)
-                                                    {
-                                                        newData[lang] = new List<string>();
-                                                    }
-                                                    else
-                                                    {
-                                                        newData[lang] = "";
-                                                    }
-                                                }
-                                            }
-
-                                            _languageData[_selectedKey] = newData;
-                                            ShowNotification(new GUIContent("Existing data replaced with new data."));
-                                            break;
-
-                                        default: // Cancel
-                                            ShowNotification(new GUIContent("Import cancelled."));
-                                            break;
-                                    }
-
-                                    _hasUnsavedChanges = true;
-                                    Repaint();
-                                }
-                                catch (Exception ex)
-                                {
-                                    EditorUtility.DisplayDialog("Paste Data Error",
-                                        "Failed to parse pasted data: " + ex.Message, "OK");
-                                }
-                            }
-                            else
-                            {
-                                ShowNotification(new GUIContent("No key selected."));
-                            }
-                        });
-
-                        menu.ShowAsContext();
-                    }
-
-                    if (GUILayout.Button("Clear", GUILayout.Width(80)))
-                    {
-                        if (EditorUtility.DisplayDialog("Clear Key Data",
-                                $"Are you sure you want to clear all translations for key '{_selectedKey}'?\nThis cannot be undone!",
-                                "Yes, Clear", "Cancel"))
-                        {
-                            if (_languageData.TryGetValue(_selectedKey, out var keyData))
-                            {
-                                foreach (var lang in keyData.Keys.ToList())
-                                {
-                                    _languageData[_selectedKey][lang] = keyData[lang] switch
-                                    {
-                                        string => "",
-                                        List<string> list =>
-                                            new List<string>(new string[list.Count]),
-                                        _ => _languageData[_selectedKey][lang]
-                                    };
-                                }
-
-                                ShowNotification(new GUIContent("All translations cleared."));
-                                _hasUnsavedChanges = true;
-                                Repaint();
-                            }
-                        }
-                    }
-
-
-                    if (GUILayout.Button("Delete", GUILayout.Width(80)))
-                    {
-                        if (EditorUtility.DisplayDialog("Delete Key",
-                                $"Are you sure you want to delete the key '{_selectedKey}'?", "Yes", "No"))
-                        {
-                            DeleteKey(_selectedKey);
-                            _selectedKey = "";
-                        }
-                    }
-
-                    EditorGUILayout.EndHorizontal();
+                    DrawKeyActionButtons();
                 }
                 else
                 {
@@ -647,74 +399,184 @@ namespace DMS.Language
             EditorGUILayout.EndVertical();
         }
 
-        private void MergeImportedData(string key, Dictionary<string, object> newData, bool isArrayKey)
+        private void DrawKeyActionButtons()
         {
-            foreach (var lang in newData.Keys)
-            {
-                if (!_languageData[key].ContainsKey(lang))
-                    continue;
+            EditorGUILayout.BeginHorizontal();
+            
+            if (GUILayout.Button("Rename", GUILayout.Width(80)))
+                RenameKey(_selectedKey);
 
-                if (isArrayKey)
+            if (GUILayout.Button("Translation Options", GUILayout.Width(120)))
+                ShowTranslationOptionsMenu();
+
+            if (GUILayout.Button("Clear", GUILayout.Width(80)))
+                ClearKeyData(_selectedKey);
+
+            if (GUILayout.Button("Delete", GUILayout.Width(80)))
+                ConfirmDeleteKey(_selectedKey);
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void ShowTranslationOptionsMenu()
+        {
+            GenericMenu menu = new GenericMenu();
+
+            menu.AddItem(new GUIContent("Translate with DeepL"), false,
+                () => { _ = TranslateAndFill(_selectedKey); });
+
+            menu.AddItem(new GUIContent("Copy AI Translate Prompt"), false, CopyAiTranslatePrompt);
+            menu.AddItem(new GUIContent("Import JSON Data from Clipboard"), false, ImportJsonFromClipboard);
+
+            menu.ShowAsContext();
+        }
+
+        private void CopyAiTranslatePrompt()
+        {
+            if (string.IsNullOrEmpty(_selectedKey) || !_languageData.TryGetValue(_selectedKey, out var keyData))
+            {
+                ShowNotification(new GUIContent("No key selected or data not found."));
+                return;
+            }
+
+            string jsonData = JsonConvert.SerializeObject(keyData, Formatting.Indented);
+            string prompt = "Please translate the following language key data from English to all other languages.\n" +
+                           "Only fill in the fields that are empty (leave existing translations unchanged).\n" +
+                           "Return only the translated JSON data without any additional text.\n\n" +
+                           jsonData;
+            EditorGUIUtility.systemCopyBuffer = prompt;
+            ShowNotification(new GUIContent("Translation prompt copied to clipboard!"));
+        }
+
+        private void ImportJsonFromClipboard()
+        {
+            if (string.IsNullOrEmpty(_selectedKey) || !_languageData.ContainsKey(_selectedKey))
+            {
+                ShowNotification(new GUIContent("No key selected."));
+                return;
+            }
+
+            string pastedText = EditorGUIUtility.systemCopyBuffer;
+            try
+            {
+                bool isSelectedKeyArray = _languageData[_selectedKey]["en"] is List<string>;
+                JObject jsonObj = JObject.Parse(pastedText);
+                var newData = ParseImportedJson(jsonObj, isSelectedKeyArray);
+                ApplyImportedData(newData, isSelectedKeyArray);
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Paste Data Error", "Failed to parse pasted data: " + ex.Message, "OK");
+            }
+        }
+
+        private Dictionary<string, object> ParseImportedJson(JObject jsonObj, bool isArrayKey)
+        {
+            var newData = new Dictionary<string, object>();
+            
+            foreach (var prop in jsonObj.Properties())
+            {
+                if (prop.Value is JArray jArray && isArrayKey)
                 {
-                    if (_languageData[key][lang] is List<string> currentList)
-                    {
-                        if (newData[lang] is List<string> newList)
-                        {
-                            for (int i = 0; i < newList.Count; i++)
-                            {
-                                if (i < currentList.Count)
-                                {
-                                    if (string.IsNullOrWhiteSpace(currentList[i]) &&
-                                        !string.IsNullOrWhiteSpace(newList[i]))
-                                    {
-                                        currentList[i] = newList[i];
-                                    }
-                                }
-                                else
-                                {
-                                    currentList.Add(newList[i]);
-                                }
-                            }
-                        }
-                        else if (newData[lang] is string strValue && !string.IsNullOrWhiteSpace(strValue))
-                        {
-                            if (currentList.Count > 0 && string.IsNullOrWhiteSpace(currentList[0]))
-                            {
-                                currentList[0] = strValue;
-                            }
-                            else
-                            {
-                                currentList.Add(strValue);
-                            }
-                        }
-                    }
+                    newData[prop.Name] = jArray.ToObject<List<string>>();
+                }
+                else if (prop.Value.Type == JTokenType.String)
+                {
+                    newData[prop.Name] = prop.Value.ToString();
+                }
+                else if (isArrayKey)
+                {
+                    TryParseAsArray(newData, prop);
                 }
                 else
                 {
-                    if (_languageData[key][lang] is string currentText)
+                    newData[prop.Name] = prop.Value.ToString();
+                }
+            }
+
+            return newData;
+        }
+
+        private void TryParseAsArray(Dictionary<string, object> newData, JProperty prop)
+        {
+            try
+            {
+                if (prop.Value.ToString().StartsWith("[") && prop.Value.ToString().EndsWith("]"))
+                {
+                    var arrayValues = JArray.Parse(prop.Value.ToString());
+                    newData[prop.Name] = arrayValues.ToObject<List<string>>();
+                }
+                else
+                {
+                    newData[prop.Name] = prop.Value.ToString();
+                }
+            }
+            catch
+            {
+                newData[prop.Name] = new List<string>();
+            }
+        }
+
+        private void ApplyImportedData(Dictionary<string, object> newData, bool isArrayKey)
+        {
+            int userChoice = EditorUtility.DisplayDialogComplex(
+                "Import Data",
+                "Do you want to merge the new data with the existing one, or replace it completely?",
+                "Merge",
+                "Cancel",
+                "Replace"
+            );
+
+            switch (userChoice)
+            {
+                case 0: // Merge
+                    MergeImportedData(_selectedKey, newData, isArrayKey);
+                    ShowNotification(new GUIContent("Data merged successfully."));
+                    break;
+
+                case 2: // Replace
+                    ReplaceKeyData(_selectedKey, newData, isArrayKey);
+                    ShowNotification(new GUIContent("Existing data replaced with new data."));
+                    break;
+            }
+
+            _hasUnsavedChanges = true;
+            Repaint();
+        }
+
+        private void ReplaceKeyData(string key, Dictionary<string, object> newData, bool isArrayKey)
+        {
+            if (isArrayKey)
+            {
+                foreach (var lang in newData.Keys.ToList())
+                {
+                    if (!(newData[lang] is List<string>))
                     {
-                        string newText;
-
-                        if (newData[lang] is string newStr)
-                        {
-                            newText = newStr;
-                        }
-                        else if (newData[lang] is List<string> newList && newList.Count > 0)
-                        {
-                            newText = newList[0];
-                        }
+                        if (newData[lang] is string strValue)
+                            newData[lang] = new List<string> { strValue };
                         else
-                        {
-                            newText = newData[lang]?.ToString() ?? "";
-                        }
-
-                        if (string.IsNullOrWhiteSpace(currentText) && !string.IsNullOrWhiteSpace(newText))
-                        {
-                            _languageData[key][lang] = newText;
-                        }
+                            newData[lang] = new List<string>();
                     }
                 }
             }
+            else
+            {
+                foreach (var lang in newData.Keys.ToList())
+                {
+                    if (newData[lang] is List<string> listValue && listValue.Count > 0)
+                        newData[lang] = string.Join(", ", listValue);
+                    else
+                        newData[lang] = newData[lang]?.ToString() ?? "";
+                }
+            }
+
+            var originalKeys = new HashSet<string>(_languageData[key].Keys);
+            foreach (var lang in originalKeys.Where(lang => !newData.ContainsKey(lang)))
+            {
+                newData[lang] = isArrayKey ? new List<string>() : "";
+            }
+
+            _languageData[key] = newData;
         }
 
         private void DrawKeysListPanel()
@@ -750,23 +612,26 @@ namespace DMS.Language
 
             for (int i = startIndex; i < endIndex; i++)
             {
-                string key = filteredKeys[i];
-                Rect keyRect = new Rect(4, i * _keyItemHeight, listPanelWidth - 8, _keyItemHeight);
-
-                GUIStyle keyStyle = GetKeyButtonStyle(key == _selectedKey);
-                string typeIndicator = _languageData[key]["en"] is List<string> ? "[ ]" : "Aa";
-                string buttonLabel = $"<color=#888888>{typeIndicator}</color> {key}";
-
-                if (GUI.Button(keyRect, buttonLabel, keyStyle))
-                {
-                    _selectedKey = key;
-                }
+                DrawKeyListItem(filteredKeys[i], i, listPanelWidth);
             }
 
             GUI.EndScrollView();
             EditorGUILayout.EndVertical();
         }
 
+        private void DrawKeyListItem(string key, int index, float width)
+        {
+            Rect keyRect = new Rect(4, index * _keyItemHeight, width - 8, _keyItemHeight);
+
+            GUIStyle keyStyle = GetKeyButtonStyle(key == _selectedKey);
+            string typeIndicator = _languageData[key]["en"] is List<string> ? "[ ]" : "Aa";
+            string buttonLabel = $"<color=#888888>{typeIndicator}</color> {key}";
+
+            if (GUI.Button(keyRect, buttonLabel, keyStyle))
+            {
+                _selectedKey = key;
+            }
+        }
 
         private GUIStyle GetKeyButtonStyle(bool isSelected)
         {
@@ -784,14 +649,8 @@ namespace DMS.Language
                     textColor = isSelected ? Color.green : EditorStyles.label.normal.textColor,
                     background = transparentTexture
                 },
-                hover =
-                {
-                    textColor = Color.green
-                },
-                active =
-                {
-                    textColor = Color.green
-                },
+                hover = { textColor = Color.green },
+                active = { textColor = Color.green },
                 richText = true
             };
 
@@ -803,7 +662,6 @@ namespace DMS.Language
             _componentsScrollPosition = EditorGUILayout.BeginScrollView(_componentsScrollPosition);
 
             EditorGUILayout.LabelField("Component Manager", EditorStyles.boldLabel);
-
             DrawDragAndDropArea();
 
             EditorGUILayout.Space();
@@ -814,7 +672,6 @@ namespace DMS.Language
             }
 
             EditorGUILayout.Space();
-
             DrawExistingComponentsSection();
 
             EditorGUILayout.EndScrollView();
@@ -828,9 +685,7 @@ namespace DMS.Language
             EditorGUILayout.Space(5);
 
             DrawLanguageSwitcher();
-
             DrawSystemStatus();
-
             DrawTestingTools();
 
             EditorGUILayout.EndScrollView();
@@ -844,65 +699,69 @@ namespace DMS.Language
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Current Language:", GUILayout.Width(120));
 
-            var currentLang = LocalizationManager.GetCurrentLanguage();
-            var content = new GUIContent(LocalizationManager.GetLanguageDisplayName(currentLang));
-
+            var currentLang = LocalizationManager.CurrentLanguage;
+            var content = new GUIContent(LanguageDefinitions.GetDisplayName(currentLang));
             var dropdownRect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true));
 
             if (EditorGUI.DropdownButton(dropdownRect, content, FocusType.Keyboard))
             {
-                var menu = new GenericMenu();
-                foreach (var lang in LocalizationManager.GetAvailableLanguages(false))
-                {
-                    menu.AddItem(
-                        new GUIContent(LocalizationManager.GetLanguageDisplayName(lang)),
-                        currentLang == lang,
-                        () =>
-                        {
-                            LocalizationManager.SetLanguage(lang);
-                            GUI.FocusControl(null);
-                            Repaint();
-                        }
-                    );
-                }
-
-                menu.DropDown(dropdownRect);
+                ShowLanguageDropdown(dropdownRect, currentLang);
             }
 
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("System Language:", GUILayout.Width(120));
-            EditorGUILayout.LabelField(LocalizationManager.GetLanguageDisplayName(LocalizationManager.GetSystemLanguage()));
+            EditorGUILayout.LabelField(LanguageDefinitions.GetDisplayName(LanguageDefinitions.FromSystemLanguage(Application.systemLanguage)));
+            
             if (GUILayout.Button("Use System Language", GUILayout.Width(150)))
             {
-                LocalizationManager.SetLanguage(LocalizationManager.DetectLanguageFromSystemLocale());
+                LocalizationManager.SetLanguage(LocalizationManager.DetectSystemLanguage());
                 Repaint();
             }
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void ShowLanguageDropdown(Rect dropdownRect, string currentLang)
+        {
+            var menu = new GenericMenu();
+            foreach (var lang in LocalizationManager.GetAvailableLanguages(false))
+            {
+                menu.AddItem(
+                    new GUIContent(LanguageDefinitions.GetDisplayName(lang)),
+                    currentLang == lang,
+                    () =>
+                    {
+                        LocalizationManager.SetLanguage(lang);
+                        GUI.FocusControl(null);
+                        Repaint();
+                    }
+                );
+            }
+            menu.DropDown(dropdownRect);
         }
 
         private void DrawSystemStatus()
         {
             _showStatusSection = EditorGUILayout.Foldout(_showStatusSection, "System Status", true);
             if (!_showStatusSection) return;
+            
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             EditorGUILayout.BeginHorizontal();
 
             EditorGUILayout.BeginVertical(GUILayout.Width(position.width / 2 - 10));
-            DrawStatusField("Initialized", LocalizationManager.IsInitialized().ToString(), MessageType.Info);
-            DrawStatusField("Current Language", LocalizationManager.GetCurrentLanguage(), MessageType.Info);
-            DrawStatusField("Fallback Language", LocalizationManager.FallbackLanguage, MessageType.Info);
-            DrawStatusField("Is RTL Language", LocalizationManager.IsRightToLeft().ToString(), MessageType.Info);
+            DrawStatusField("Initialized", LocalizationManager.IsInitialized.ToString(), MessageType.Info);
+            DrawStatusField("Current Language", LocalizationManager.CurrentLanguage, MessageType.Info);
+            DrawStatusField("Default Language", LanguageDefinitions.DefaultLanguage, MessageType.Info);
+            DrawStatusField("Is RTL Language", LocalizationManager.IsRightToLeft.ToString(), MessageType.Info);
             EditorGUILayout.EndVertical();
 
             EditorGUILayout.BeginVertical();
-            DrawStatusField("Available Languages", LocalizationManager.GetAvailableLanguages(true).Count().ToString(),
-                MessageType.Info);
+            var availableCount = LocalizationManager.GetAvailableLanguages().Count();
+            DrawStatusField("Available Languages", availableCount.ToString(), MessageType.Info);
             EditorGUILayout.EndVertical();
 
             EditorGUILayout.EndHorizontal();
@@ -921,20 +780,19 @@ namespace DMS.Language
         {
             _showTestingTools = EditorGUILayout.Foldout(_showTestingTools, "Testing Tools", true);
             if (!_showTestingTools) return;
+            
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             DrawTestSection("Simple Text Lookup", () =>
             {
                 EditorGUILayout.BeginHorizontal();
-                _testKey = EditorGUILayout.TextField(new GUIContent("Key", "Enter the language key to test"),
-                    _testKey);
+                _testKey = EditorGUILayout.TextField(new GUIContent("Key", "Enter the language key to test"), _testKey);
                 GUI.enabled = !string.IsNullOrEmpty(_testKey);
                 if (GUILayout.Button("Test", GUILayout.Width(60)))
                 {
                     _testResult = LocalizationManager.GetText(_testKey);
                     GUI.FocusControl(null);
                 }
-
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
             });
@@ -944,15 +802,13 @@ namespace DMS.Language
             DrawTestSection("RTL Test", () =>
             {
                 EditorGUILayout.BeginHorizontal();
-                _testRtl = EditorGUILayout.TextField(new GUIContent("Text", "Enter the language key to rtl"),
-                    _testRtl);
+                _testRtl = EditorGUILayout.TextField(new GUIContent("Text", "Enter Arabic text to test RTL"), _testRtl);
                 GUI.enabled = !string.IsNullOrEmpty(_testRtl);
                 if (GUILayout.Button("Test", GUILayout.Width(60)))
                 {
                     _testResult = LocalizationRtlManager.Fix(_testRtl);
                     GUI.FocusControl(null);
                 }
-
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
             });
@@ -961,34 +817,11 @@ namespace DMS.Language
 
             DrawTestSection("Parameterized Text", () =>
             {
-                _testKeyWithParams =
-                    EditorGUILayout.TextField(new GUIContent("Key", "Enter the language key with parameters"),
-                        _testKeyWithParams);
+                _testKeyWithParams = EditorGUILayout.TextField(
+                    new GUIContent("Key", "Enter the language key with parameters"),
+                    _testKeyWithParams);
 
-                _showParameterList = EditorGUILayout.Foldout(_showParameterList, "Parameters", true);
-                if (_showParameterList)
-                {
-                    EditorGUI.indentLevel++;
-                    for (var i = 0; i < _parameterList.Count; i++)
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        _parameterList[i] = EditorGUILayout.TextField($"Param {i}", _parameterList[i]);
-                        if (GUILayout.Button("-", GUILayout.Width(20)))
-                        {
-                            _parameterList.RemoveAt(i);
-                            break;
-                        }
-
-                        EditorGUILayout.EndHorizontal();
-                    }
-
-                    EditorGUI.indentLevel--;
-
-                    if (GUILayout.Button("Add Parameter"))
-                    {
-                        _parameterList.Add("");
-                    }
-                }
+                DrawParameterList();
 
                 GUI.enabled = !string.IsNullOrEmpty(_testKeyWithParams);
                 if (GUILayout.Button("Test With Parameters", GUILayout.Height(24)))
@@ -996,39 +829,68 @@ namespace DMS.Language
                     _testResult = LocalizationManager.GetText(_testKeyWithParams, _parameterList.ToArray());
                     GUI.FocusControl(null);
                 }
-
                 GUI.enabled = true;
             });
 
             if (!string.IsNullOrEmpty(_testResult))
             {
-                EditorGUILayout.Space(5);
-                EditorGUILayout.LabelField("Result:", EditorStyles.boldLabel);
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.SelectableLabel(_testResult, EditorStyles.wordWrappedLabel, GUILayout.Height(40));
-
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Copy", GUILayout.Width(60)))
-                {
-                    EditorGUIUtility.systemCopyBuffer = _testResult;
-                    ShowNotification(new GUIContent("Copied to clipboard!"));
-                }
-
-                if (GUILayout.Button("Clear", GUILayout.Width(60)))
-                {
-                    _testResult = "";
-                }
-
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.EndVertical();
+                DrawTestResult();
             }
 
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawStatusField(string label, string value, MessageType type = MessageType.None)
+        private void DrawParameterList()
+        {
+            _showParameterList = EditorGUILayout.Foldout(_showParameterList, "Parameters", true);
+            if (_showParameterList)
+            {
+                EditorGUI.indentLevel++;
+                for (var i = 0; i < _parameterList.Count; i++)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    _parameterList[i] = EditorGUILayout.TextField($"Param {i}", _parameterList[i]);
+                    if (GUILayout.Button("-", GUILayout.Width(20)))
+                    {
+                        _parameterList.RemoveAt(i);
+                        break;
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUI.indentLevel--;
+
+                if (GUILayout.Button("Add Parameter"))
+                {
+                    _parameterList.Add("");
+                }
+            }
+        }
+
+        private void DrawTestResult()
+        {
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("Result:", EditorStyles.boldLabel);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.SelectableLabel(_testResult, EditorStyles.wordWrappedLabel, GUILayout.Height(40));
+
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Copy", GUILayout.Width(60)))
+            {
+                EditorGUIUtility.systemCopyBuffer = _testResult;
+                ShowNotification(new GUIContent("Copied to clipboard!"));
+            }
+
+            if (GUILayout.Button("Clear", GUILayout.Width(60)))
+            {
+                _testResult = "";
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.EndVertical();
+        }
+
+        private static void DrawStatusField(string label, string value, MessageType type = MessageType.None)
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(label + ":", GUILayout.Width(120));
@@ -1089,23 +951,24 @@ namespace DMS.Language
             {
                 case EventType.DragUpdated:
                 case EventType.DragPerform:
-                    if (!rect.Contains(evt.mousePosition))
-                        break;
-
-                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-                    _dragAreaColor = new Color(0.1f, 1f, 0.1f);
-
-                    if (evt.type == EventType.DragPerform)
+                    if (rect.Contains(evt.mousePosition))
                     {
-                        DragAndDrop.AcceptDrag();
-                        foreach (var draggedObject in DragAndDrop.objectReferences)
+                        DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                        _dragAreaColor = new Color(0.1f, 1f, 0.1f);
+
+                        if (evt.type == EventType.DragPerform)
                         {
-                            if (draggedObject is not GameObject go) continue;
-                            _selectedGameObject = go;
-                            break;
+                            DragAndDrop.AcceptDrag();
+                            foreach (var draggedObject in DragAndDrop.objectReferences)
+                            {
+                                if (draggedObject is GameObject go)
+                                {
+                                    _selectedGameObject = go;
+                                    break;
+                                }
+                            }
                         }
                     }
-
                     evt.Use();
                     break;
 
@@ -1172,8 +1035,7 @@ namespace DMS.Language
             EditorGUILayout.BeginVertical("box");
 
             EditorGUILayout.BeginHorizontal();
-            _showExistingComponents =
-                EditorGUILayout.Foldout(_showExistingComponents, "Existing Language Components", true);
+            _showExistingComponents = EditorGUILayout.Foldout(_showExistingComponents, "Existing Language Components", true);
 
             if (_showExistingComponents)
             {
@@ -1191,39 +1053,41 @@ namespace DMS.Language
 
             if (_showExistingComponents)
             {
-                var allComponents =
-                    FindObjectsByType<LocalizationTextComponent>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-                if (allComponents.Length == 0)
-                {
-                    EditorGUILayout.HelpBox("No language components found in the scene.", MessageType.Info);
-                }
-                else
-                {
-                    var filteredComponents = allComponents
-                        .Where(c => string.IsNullOrEmpty(_componentSearchFilter) ||
-                                    c.gameObject.name.ToLower().Contains(_componentSearchFilter.ToLower()) ||
-                                    c.languageKey.ToLower().Contains(_componentSearchFilter.ToLower()))
-                        .OrderBy(c => c.gameObject.name)
-                        .ToList();
-
-                    EditorGUILayout.Space();
-                    EditorGUILayout.LabelField($"Found {filteredComponents.Count} components",
-                        EditorStyles.miniBoldLabel);
-
-                    _existingComponentsScrollPos =
-                        EditorGUILayout.BeginScrollView(_existingComponentsScrollPos, GUILayout.Height(500));
-
-                    foreach (var component in filteredComponents)
-                    {
-                        DrawExistingComponentEntry(component);
-                    }
-
-                    EditorGUILayout.EndScrollView();
-                }
+                ShowExistingComponentsList();
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void ShowExistingComponentsList()
+        {
+            var allComponents = FindObjectsByType<LocalizationTextComponent>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            if (allComponents.Length == 0)
+            {
+                EditorGUILayout.HelpBox("No language components found in the scene.", MessageType.Info);
+                return;
+            }
+
+            var filteredComponents = allComponents
+                .Where(c => string.IsNullOrEmpty(_componentSearchFilter) ||
+                            c.gameObject.name.ToLower().Contains(_componentSearchFilter.ToLower()) ||
+                            c.TranslationKey.ToLower().Contains(_componentSearchFilter.ToLower()))
+                .OrderBy(c => c.gameObject.name)
+                .ToList();
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField($"Found {filteredComponents.Count} components", EditorStyles.miniBoldLabel);
+
+            _existingComponentsScrollPos = EditorGUILayout.BeginScrollView(_existingComponentsScrollPos, GUILayout.Height(500));
+
+            foreach (var component in filteredComponents)
+            {
+                DrawExistingComponentEntry(component);
+            }
+
+            EditorGUILayout.EndScrollView();
         }
 
         private void DrawExistingComponentEntry(LocalizationTextComponent component)
@@ -1231,7 +1095,6 @@ namespace DMS.Language
             if (component == null) return;
 
             EditorGUILayout.BeginVertical("box");
-
             EditorGUILayout.BeginHorizontal();
 
             if (GUILayout.Button("☉", GUILayout.Width(23)))
@@ -1241,7 +1104,7 @@ namespace DMS.Language
                 ? component.gameObject.transform.parent.name
                 : "No Parent";
             EditorGUILayout.LabelField($"{parentName}: {component.gameObject.name}", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField($"Key: {component.languageKey}", EditorStyles.miniLabel, GUILayout.Width(200));
+            EditorGUILayout.LabelField($"Key: {component.TranslationKey}", EditorStyles.miniLabel, GUILayout.Width(200));
 
             var componentType = component.GetComponent<TMP_Text>() != null ? "Text" : "Dropdown";
             EditorGUILayout.LabelField(componentType, EditorStyles.miniLabel, GUILayout.Width(60));
@@ -1261,11 +1124,9 @@ namespace DMS.Language
                     Undo.DestroyObjectImmediate(component);
                 }
             }
-
             GUI.backgroundColor = Color.white;
 
             EditorGUILayout.EndHorizontal();
-
             EditorGUILayout.EndVertical();
         }
 
@@ -1276,7 +1137,8 @@ namespace DMS.Language
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("☉", GUILayout.Width(23)))
                 EditorGUIUtility.PingObject(component.gameObject);
-            string parentName = go.transform.parent.name;
+            
+            string parentName = go.transform.parent?.name ?? "Root";
             EditorGUILayout.LabelField($"{parentName}: {go.name}", EditorStyles.boldLabel);
             var langComponent = go.GetComponent<LocalizationTextComponent>();
 
@@ -1299,81 +1161,68 @@ namespace DMS.Language
 
             if (langComponent != null)
             {
-                EditorGUILayout.Space();
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("Language Key:", GUILayout.Width(100));
-
-                var buttonRect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true));
-                var selectedIndex = _keys.IndexOf(langComponent.languageKey);
-                var displayText = selectedIndex >= 0 ? _keys[selectedIndex] : "Select a key...";
-
-                var style = new GUIStyle(EditorStyles.popup)
-                {
-                    richText = true,
-                    alignment = TextAnchor.MiddleLeft
-                };
-
-                if (EditorGUI.DropdownButton(buttonRect, new GUIContent(displayText), FocusType.Keyboard, style))
-                {
-                    LocalizationSearchablePopup.Show(buttonRect, _keys.ToArray(), selectedIndex, (index) =>
-                    {
-                        if (index == selectedIndex || index < 0) return;
-                        Undo.RecordObject(langComponent, "Change Language Key");
-                        langComponent.languageKey = _keys[index];
-                        EditorUtility.SetDirty(langComponent);
-                    });
-                }
-
-                EditorGUILayout.EndHorizontal();
-
-                if (langComponent.languageKey != null &&
-                    _languageData.ContainsKey(langComponent.languageKey) &&
-                    _languageData[langComponent.languageKey]["en"] is List<string> array)
-                {
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("Array Index:", GUILayout.Width(100));
-
-                    var newArrayIndex = EditorGUILayout.IntSlider(
-                        langComponent.arrayIndex,
-                        -1,
-                        array.Count - 1);
-
-                    EditorGUILayout.LabelField("Array Size Limit:", GUILayout.Width(100));
-
-                    var newArraySizeLimit = EditorGUILayout.IntSlider(
-                        langComponent.arraySizeLimit,
-                        0,
-                        array.Count);
-
-                    langComponent.arraySizeLimit = newArraySizeLimit;
-
-                    if (newArrayIndex != langComponent.arrayIndex)
-                    {
-                        Undo.RecordObject(langComponent, "Change Array Index");
-                        langComponent.arrayIndex = newArrayIndex;
-                        EditorUtility.SetDirty(langComponent);
-                    }
-
-                    EditorGUILayout.EndHorizontal();
-                }
-
-                EditorGUILayout.Space();
-                EditorGUI.BeginDisabledGroup(true);
-                switch (component)
-                {
-                    case TMP_Text text:
-                        EditorGUILayout.TextField("Current Text:", text.text);
-                        break;
-                    case TMP_Dropdown dropdown:
-                        EditorGUILayout.TextField("Options Count:", dropdown.options.Count.ToString());
-                        break;
-                }
-
-                EditorGUI.EndDisabledGroup();
+                DrawComponentKeySelector(langComponent);
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawComponentKeySelector(LocalizationTextComponent langComponent)
+        {
+            EditorGUILayout.Space();
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Language Key:", GUILayout.Width(100));
+
+            var buttonRect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true));
+            var selectedIndex = _keys.IndexOf(langComponent.TranslationKey);
+            var displayText = selectedIndex >= 0 ? _keys[selectedIndex] : "Select a key...";
+
+            var style = new GUIStyle(EditorStyles.popup)
+            {
+                richText = true,
+                alignment = TextAnchor.MiddleLeft
+            };
+
+            if (EditorGUI.DropdownButton(buttonRect, new GUIContent(displayText), FocusType.Keyboard, style))
+            {
+                LocalizationSearchablePopup.Show(buttonRect, _keys.ToArray(), selectedIndex, (index) =>
+                {
+                    if (index == selectedIndex || index < 0) return;
+                    Undo.RecordObject(langComponent, "Change Language Key");
+                    langComponent.TranslationKey = _keys[index];
+                    EditorUtility.SetDirty(langComponent);
+                });
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            DrawArrayControlsIfNeeded(langComponent);
+        }
+
+        private void DrawArrayControlsIfNeeded(LocalizationTextComponent langComponent)
+        {
+            if (langComponent.TranslationKey == null) return;
+            if (!_languageData.ContainsKey(langComponent.TranslationKey)) return;
+            if (_languageData[langComponent.TranslationKey]["en"] is not List<string> array) return;
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Array Index:", GUILayout.Width(100));
+
+            var newArrayIndex = EditorGUILayout.IntSlider(langComponent.ArrayIndex, -1, array.Count - 1);
+
+            EditorGUILayout.LabelField("Array Size Limit:", GUILayout.Width(100));
+            var newArraySizeLimit = EditorGUILayout.IntSlider(langComponent.arraySizeLimit, 0, array.Count);
+            langComponent.arraySizeLimit = newArraySizeLimit;
+
+            if (newArrayIndex != langComponent.ArrayIndex)
+            {
+                Undo.RecordObject(langComponent, "Change Array Index");
+                langComponent.ArrayIndex = newArrayIndex;
+                EditorUtility.SetDirty(langComponent);
+            }
+
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawAddKeySection()
@@ -1409,14 +1258,12 @@ namespace DMS.Language
                 _keySearchFilter = "";
                 GUI.FocusControl(null);
             }
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Filter:", GUILayout.Width(80));
             var newShowArrayKeys = EditorGUILayout.ToggleLeft("Array Keys", _showArrayKeysOnly, GUILayout.Width(100));
-            var newShowStringKeys =
-                EditorGUILayout.ToggleLeft("String Keys", _showStringKeysOnly, GUILayout.Width(100));
+            var newShowStringKeys = EditorGUILayout.ToggleLeft("String Keys", _showStringKeysOnly, GUILayout.Width(100));
 
             _sortKeysByName = EditorGUILayout.ToggleLeft("Sort by Name", _sortKeysByName, GUILayout.Width(100));
 
@@ -1451,7 +1298,7 @@ namespace DMS.Language
             foreach (var lang in _languageCodes)
             {
                 EditorGUILayout.BeginVertical();
-                var langName = LocalizationManager.LanguageNames.GetValueOrDefault(lang, lang);
+                var langName = LanguageDefinitions.GetDisplayName(lang);
                 EditorGUILayout.LabelField($"{langName}:", GUILayout.Width(120));
 
                 var currentText = _languageData[key][lang]?.ToString() ?? "";
@@ -1480,7 +1327,6 @@ namespace DMS.Language
             EditorGUILayout.EndVertical();
         }
 
-
         private void DrawArrayKeyContent(string key)
         {
             EditorGUILayout.BeginVertical("box");
@@ -1488,29 +1334,41 @@ namespace DMS.Language
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Add New Element", GUILayout.Width(120)))
             {
-                var enArray = (List<string>)_languageData[key]["en"];
-                enArray.Add("");
-                foreach (var lang in _languageCodes.Where(l => l != "en"))
-                {
-                    if (_languageData[key][lang] is List<string> otherArray)
-                    {
-                        otherArray.Add("");
-                    }
-                }
+                AddArrayElement(key);
             }
 
             if (GUILayout.Button("Clear Empty Elements", GUILayout.Width(140)))
             {
                 ClearEmptyArrayElements(key);
             }
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
 
             var array = (List<string>)_languageData[key]["en"];
-            var elementDeleted = false;
-            var deleteIndex = -1;
+            DrawArrayElements(key, array);
+
+            EditorGUILayout.EndVertical();
+        }
+
+        private void AddArrayElement(string key)
+        {
+            var enArray = (List<string>)_languageData[key]["en"];
+            enArray.Add("");
+            foreach (var lang in _languageCodes.Where(l => l != "en"))
+            {
+                if (_languageData[key][lang] is List<string> otherArray)
+                {
+                    otherArray.Add("");
+                }
+            }
+            _hasUnsavedChanges = true;
+        }
+
+        private void DrawArrayElements(string key, List<string> array)
+        {
+            bool elementDeleted = false;
+            int deleteIndex = -1;
 
             for (var i = 0; i < array.Count; i++)
             {
@@ -1532,42 +1390,45 @@ namespace DMS.Language
                 GUI.backgroundColor = Color.white;
                 EditorGUILayout.EndHorizontal();
 
-                foreach (var lang in _languageCodes)
-                {
-                    var langName = LocalizationManager.LanguageNames.GetValueOrDefault(lang, lang);
-                    EditorGUILayout.LabelField($"{langName}:", GUILayout.Width(120));
-
-                    var langArray = (List<string>)_languageData[key][lang];
-                    var currentText = langArray[i] ?? "";
-
-                    Rect textRect = EditorGUILayout.GetControlRect();
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUI.TextField(textRect, currentText);
-                    EditorGUI.EndDisabledGroup();
-
-                    if (Event.current.type == EventType.MouseDown &&
-                        Event.current.clickCount == 2 &&
-                        textRect.Contains(Event.current.mousePosition))
-                    {
-                        int capturedIndex = i;
-                        OpenTextEditor(currentText, (newText) =>
-                        {
-                            langArray[capturedIndex] = newText;
-                            _hasUnsavedChanges = true;
-                            Repaint();
-                        });
-                        Event.current.Use();
-                    }
-                }
+                DrawArrayElementTranslations(key, i);
 
                 EditorGUILayout.EndVertical();
             }
 
-            EditorGUILayout.EndVertical();
-
             if (elementDeleted && deleteIndex >= 0)
             {
                 DeleteArrayElement(key, deleteIndex);
+            }
+        }
+
+        private void DrawArrayElementTranslations(string key, int index)
+        {
+            foreach (var lang in _languageCodes)
+            {
+                var langName = LanguageDefinitions.GetDisplayName(lang);
+                EditorGUILayout.LabelField($"{langName}:", GUILayout.Width(120));
+
+                var langArray = (List<string>)_languageData[key][lang];
+                var currentText = langArray[index] ?? "";
+
+                Rect textRect = EditorGUILayout.GetControlRect();
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUI.TextField(textRect, currentText);
+                EditorGUI.EndDisabledGroup();
+
+                if (Event.current.type == EventType.MouseDown &&
+                    Event.current.clickCount == 2 &&
+                    textRect.Contains(Event.current.mousePosition))
+                {
+                    int capturedIndex = index;
+                    OpenTextEditor(currentText, (newText) =>
+                    {
+                        langArray[capturedIndex] = newText;
+                        _hasUnsavedChanges = true;
+                        Repaint();
+                    });
+                    Event.current.Use();
+                }
             }
         }
 
@@ -1579,24 +1440,13 @@ namespace DMS.Language
 
             EditorGUILayout.BeginVertical("box");
 
-            foreach (var lang in _languageCodes.Where(lang => !_languageSelectionForCharset.ContainsKey(lang)))
-            {
-                _languageSelectionForCharset[lang] = false;
-            }
-
-            var currentLanguages = new HashSet<string>(_languageCodes);
-            foreach (var lang in _languageSelectionForCharset.Keys.ToList()
-                         .Where(lang => !currentLanguages.Contains(lang)))
-            {
-                _languageSelectionForCharset.Remove(lang);
-            }
+            UpdateLanguageSelectionForCharset();
 
             EditorGUILayout.LabelField("Select Languages:", EditorStyles.boldLabel);
-            _charsetLanguageScrollPos =
-                EditorGUILayout.BeginScrollView(_charsetLanguageScrollPos, GUILayout.Height(200));
+            _charsetLanguageScrollPos = EditorGUILayout.BeginScrollView(_charsetLanguageScrollPos, GUILayout.Height(200));
             foreach (var lang in _languageCodes)
             {
-                string langName = LocalizationManager.LanguageNames.GetValueOrDefault(lang, lang);
+                string langName = LanguageDefinitions.GetDisplayName(lang);
                 bool currentState = _languageSelectionForCharset[lang];
                 bool newState = EditorGUILayout.Toggle($"{langName} ({lang})", currentState);
                 if (newState != currentState)
@@ -1605,51 +1455,71 @@ namespace DMS.Language
                     _hasUnsavedChanges = true;
                 }
             }
-
             EditorGUILayout.EndScrollView();
 
             bool anySelected = _languageSelectionForCharset.Any(kvp => kvp.Value);
-            GUI.enabled = anySelected;
+            EditorGUI.BeginDisabledGroup(!anySelected);
             if (GUILayout.Button("Generate Charsets", GUILayout.Height(30)))
             {
-                _generatedCharsets.Clear();
-                foreach (var lang in _languageCodes.Where(l => _languageSelectionForCharset[l]))
-                {
-                    string charset = GenerateCharsetForLanguage(lang);
-                    _generatedCharsets[lang] = charset;
-                }
-
-                _hasUnsavedChanges = true;
+                GenerateCharsets();
             }
-
-            GUI.enabled = true;
+            EditorGUI.EndDisabledGroup();
 
             if (_generatedCharsets.Count > 0)
             {
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Generated Charsets:", EditorStyles.boldLabel);
-                foreach (var kvp in _generatedCharsets)
-                {
-                    string lang = kvp.Key;
-                    string charset = kvp.Value;
-                    string langName = LocalizationManager.LanguageNames.GetValueOrDefault(lang, lang);
-
-                    EditorGUILayout.BeginVertical("box");
-                    EditorGUILayout.LabelField($"Language: {langName} ({lang})", EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField($"Unique Characters: {charset.Length}");
-                    EditorGUILayout.SelectableLabel(charset, EditorStyles.textArea, GUILayout.Height(50));
-                    if (GUILayout.Button("Copy to Clipboard", GUILayout.Width(150)))
-                    {
-                        EditorGUIUtility.systemCopyBuffer = charset;
-                        ShowNotification(new GUIContent($"Charset for {langName} copied to clipboard!"));
-                    }
-
-                    EditorGUILayout.EndVertical();
-                }
+                DrawGeneratedCharsets();
             }
 
             EditorGUILayout.EndVertical();
             EditorGUILayout.EndScrollView();
+        }
+
+        private void UpdateLanguageSelectionForCharset()
+        {
+            foreach (var lang in _languageCodes.Where(lang => !_languageSelectionForCharset.ContainsKey(lang)))
+            {
+                _languageSelectionForCharset[lang] = false;
+            }
+
+            var currentLanguages = new HashSet<string>(_languageCodes);
+            foreach (var lang in _languageSelectionForCharset.Keys.ToList().Where(lang => !currentLanguages.Contains(lang)))
+            {
+                _languageSelectionForCharset.Remove(lang);
+            }
+        }
+
+        private void GenerateCharsets()
+        {
+            _generatedCharsets.Clear();
+            foreach (var lang in _languageCodes.Where(l => _languageSelectionForCharset[l]))
+            {
+                string charset = GenerateCharsetForLanguage(lang);
+                _generatedCharsets[lang] = charset;
+            }
+            _hasUnsavedChanges = true;
+        }
+
+        private void DrawGeneratedCharsets()
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Generated Charsets:", EditorStyles.boldLabel);
+            foreach (var kvp in _generatedCharsets)
+            {
+                string lang = kvp.Key;
+                string charset = kvp.Value;
+                string langName = LanguageDefinitions.GetDisplayName(lang);
+
+                EditorGUILayout.BeginVertical("box");
+                EditorGUILayout.LabelField($"Language: {langName} ({lang})", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"Unique Characters: {charset.Length}");
+                EditorGUILayout.SelectableLabel(charset, EditorStyles.textArea, GUILayout.Height(50));
+                if (GUILayout.Button("Copy to Clipboard", GUILayout.Width(150)))
+                {
+                    EditorGUIUtility.systemCopyBuffer = charset;
+                    ShowNotification(new GUIContent($"Charset for {langName} copied to clipboard!"));
+                }
+                EditorGUILayout.EndVertical();
+            }
         }
 
         private string GenerateCharsetForLanguage(string language)
@@ -1659,31 +1529,25 @@ namespace DMS.Language
             {
                 if (_languageData[key].TryGetValue(language, out var value))
                 {
-                    switch (value)
-                    {
-                        case string str:
-                            {
-                                foreach (var c in str)
-                                {
-                                    charSet.Add(c);
-                                }
-
-                                break;
-                            }
-                        case List<string> list:
-                            {
-                                foreach (var c in list.Where(item => item != null).SelectMany(item => item))
-                                {
-                                    charSet.Add(c);
-                                }
-
-                                break;
-                            }
-                    }
+                    AddValueToCharset(value, charSet);
                 }
             }
 
             return new string(charSet.ToArray());
+        }
+
+        private void AddValueToCharset(object value, HashSet<char> charSet)
+        {
+            switch (value)
+            {
+                case string str:
+                    foreach (var c in str) charSet.Add(c);
+                    break;
+                case List<string> list:
+                    foreach (var c in list.Where(item => item != null).SelectMany(item => item))
+                        charSet.Add(c);
+                    break;
+            }
         }
 
         private void DrawConfigTab()
@@ -1693,15 +1557,13 @@ namespace DMS.Language
             EditorGUILayout.BeginVertical("box");
 
             EditorGUILayout.LabelField("DeepL API Settings", EditorStyles.boldLabel);
-            //EditorGUILayout.TextField("API URL:", DeeplApiUrl, EditorStyles.textField);
             EditorGUILayout.TextField("API Key:", DeeplApiKey, EditorStyles.textField);
 
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("DMSL Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("File Settings", EditorStyles.boldLabel);
             EditorGUILayout.TextField("File Path:", "{StreamingAssets}" + LocalizationManager.LanguagesFilePath,
                 EditorStyles.textField);
-            EditorGUILayout.Toggle("LZ4 Compression", _compact);
 
             EditorGUILayout.Space();
 
@@ -1726,25 +1588,24 @@ namespace DMS.Language
             EditorGUILayout.BeginHorizontal();
 
             GUI.backgroundColor = Color.red;
-            if (GUILayout.Button("Delete DMSL Data", GUILayout.Height(25)))
+            if (GUILayout.Button("Delete Language Data", GUILayout.Height(25)))
             {
                 PurgeAllData();
             }
 
             GUI.backgroundColor = Color.white;
 
-            if (GUILayout.Button("Open DMSL File", GUILayout.Height(25)))
+            if (GUILayout.Button("Open Language File", GUILayout.Height(25)))
             {
                 OpenLanguageFile();
             }
-
 
             GUI.backgroundColor = Color.white;
 
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
-            EditorGUILayout.HelpBox("File Path: " + LocalizationManager.DmsFilePath, MessageType.Info);
+            EditorGUILayout.HelpBox("File Path: " + LocalizationManager.FilePath, MessageType.Info);
 
             EditorGUILayout.EndVertical();
         }
@@ -1757,7 +1618,6 @@ namespace DMS.Language
             {
                 SaveLanguages();
             }
-
             GUI.backgroundColor = Color.white;
         }
 
@@ -1793,7 +1653,6 @@ namespace DMS.Language
 
             return query;
         }
-
 
         private void DeleteArrayElement(string key, int index)
         {
@@ -1833,23 +1692,23 @@ namespace DMS.Language
                     "Are you sure you want to delete all language data?\n\n" +
                     "This action cannot be undone!",
                     "Yes, Delete All", "Cancel")) return;
+            
             _languageData.Clear();
             _keys.Clear();
             _languageCodes.Clear();
             _languageCodes.Add("en");
             SaveLanguages();
-
             Repaint();
         }
 
         private static void UnregisterEventHandlers()
         {
-            LocalizationManager.Cleanup();
+            LocalizationManager.Dispose();
         }
 
         private static void OpenLanguageFile()
         {
-            if (!File.Exists(LocalizationManager.DmsFilePath))
+            if (!File.Exists(LocalizationManager.FilePath))
             {
                 EditorUtility.DisplayDialog("Error",
                     "Language file does not exist yet.\nSave some data first to create the file.",
@@ -1859,33 +1718,38 @@ namespace DMS.Language
 
             try
             {
-                System.Diagnostics.Process.Start(LocalizationManager.DmsFilePath);
+                System.Diagnostics.Process.Start(LocalizationManager.FilePath);
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error opening language file: {e} trying to open with other editors.");
-                try
+                Debug.LogError($"Error opening language file: {e}");
+                TryOpenWithAlternativeEditors();
+            }
+        }
+
+        private static void TryOpenWithAlternativeEditors()
+        {
+            try
+            {
+                switch (Application.platform)
                 {
-                    switch (Application.platform)
-                    {
-                        case RuntimePlatform.WindowsEditor:
-                            System.Diagnostics.Process.Start("notepad.exe", LocalizationManager.DmsFilePath);
-                            break;
-                        case RuntimePlatform.OSXEditor:
-                            System.Diagnostics.Process.Start("open", LocalizationManager.DmsFilePath);
-                            break;
-                        default:
-                            System.Diagnostics.Process.Start("xdg-open", LocalizationManager.DmsFilePath);
-                            break;
-                    }
+                    case RuntimePlatform.WindowsEditor:
+                        System.Diagnostics.Process.Start("notepad.exe", LocalizationManager.FilePath);
+                        break;
+                    case RuntimePlatform.OSXEditor:
+                        System.Diagnostics.Process.Start("open", LocalizationManager.FilePath);
+                        break;
+                    default:
+                        System.Diagnostics.Process.Start("xdg-open", LocalizationManager.FilePath);
+                        break;
                 }
-                catch (Exception ex)
-                {
-                    EditorUtility.DisplayDialog("Error",
-                        $"Could not open the language file: {ex.Message}",
-                        "OK");
-                    Debug.LogError($"Error opening language file: {ex}");
-                }
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Error",
+                    $"Could not open the language file: {ex.Message}",
+                    "OK");
+                Debug.LogError($"Error opening language file: {ex}");
             }
         }
 
@@ -1896,23 +1760,7 @@ namespace DMS.Language
                 _languageCodes.Add(language);
                 foreach (var key in _keys)
                 {
-                    switch (_languageData[key]["en"])
-                    {
-                        case string:
-                            _languageData[key][language] = "";
-                            break;
-                        case List<string> enArray:
-                            {
-                                var newArray = new List<string>();
-                                for (var i = 0; i < enArray.Count; i++)
-                                {
-                                    newArray.Add("");
-                                }
-
-                                _languageData[key][language] = newArray;
-                                break;
-                            }
-                    }
+                    AddLanguageToKey(key, language);
                 }
 
                 GUI.changed = true;
@@ -1921,6 +1769,24 @@ namespace DMS.Language
             else
             {
                 Debug.LogWarning($"Language '{language}' already exists.");
+            }
+        }
+
+        private void AddLanguageToKey(string key, string language)
+        {
+            switch (_languageData[key]["en"])
+            {
+                case string:
+                    _languageData[key][language] = "";
+                    break;
+                case List<string> enArray:
+                    var newArray = new List<string>();
+                    for (var i = 0; i < enArray.Count; i++)
+                    {
+                        newArray.Add("");
+                    }
+                    _languageData[key][language] = newArray;
+                    break;
             }
         }
 
@@ -1944,31 +1810,28 @@ namespace DMS.Language
 
         private void AddKey(string key, bool isArray)
         {
-            if (!string.IsNullOrEmpty(key))
-            {
-                if (!_keys.Contains(key))
-                {
-                    _keys.Add(key);
-                    _languageData[key] = new Dictionary<string, object>();
-                    foreach (var lang in _languageCodes)
-                    {
-                        _languageData[key][lang] = isArray ? new List<string>() : "";
-                    }
-
-                    _selectedKey = key;
-                }
-                else
-                {
-                    Debug.LogWarning($"Key '{key}' already exists.");
-                }
-
-                _hasUnsavedChanges = true;
-                Repaint();
-            }
-            else
+            if (string.IsNullOrEmpty(key))
             {
                 Debug.LogWarning("Key can't be empty string.");
+                return;
             }
+
+            if (_keys.Contains(key))
+            {
+                Debug.LogWarning($"Key '{key}' already exists.");
+                return;
+            }
+
+            _keys.Add(key);
+            _languageData[key] = new Dictionary<string, object>();
+            foreach (var lang in _languageCodes)
+            {
+                _languageData[key][lang] = isArray ? new List<string>() : "";
+            }
+
+            _selectedKey = key;
+            _hasUnsavedChanges = true;
+            Repaint();
         }
 
         private void DeleteKey(string key)
@@ -1984,362 +1847,325 @@ namespace DMS.Language
             }
         }
 
-        private void RenameKey(string key)
+        private void ConfirmDeleteKey(string key)
         {
-            if (_keys.Contains(key))
+            if (EditorUtility.DisplayDialog("Delete Key",
+                    $"Are you sure you want to delete the key '{key}'?", "Yes", "No"))
             {
-                OpenTextEditor(key, (newKey) =>
-                {
-                    if (string.IsNullOrEmpty(newKey))
-                    {
-                        EditorUtility.DisplayDialog("Error", "Key name cannot be empty.", "OK");
-                        return;
-                    }
-
-                    if (_keys.Contains(newKey))
-                    {
-                        EditorUtility.DisplayDialog("Error", $"Key '{newKey}' already exists.", "OK");
-                        return;
-                    }
-
-                    var translations = _languageData[key];
-                    var currentIndex = _keys.IndexOf(key);
-
-                    _keys.RemoveAt(currentIndex);
-                    _languageData.Remove(key);
-
-                    _keys.Insert(currentIndex, newKey);
-                    _languageData[newKey] = translations;
-
-                    if (_keyFoldouts.ContainsKey(key))
-                    {
-                        var foldoutState = _keyFoldouts[key];
-                        _keyFoldouts.Remove(key);
-                        _keyFoldouts[newKey] = foldoutState;
-                    }
-
-                    Debug.Log($"Key renamed from '{key}' to '{newKey}'");
-                    GUI.changed = true;
-                    _hasUnsavedChanges = true;
-                    Repaint();
-                });
+                DeleteKey(key);
+                _selectedKey = "";
             }
         }
 
-        private static void OpenTextEditor(string initialText, Action<string> onSave)
+        private void ClearKeyData(string key)
         {
-            LocalizationTextEditorPopup.Open(initialText, onSave);
+            if (!EditorUtility.DisplayDialog("Clear Key Data",
+                    $"Are you sure you want to clear all translations for key '{key}'?\nThis cannot be undone!",
+                    "Yes, Clear", "Cancel"))
+                return;
+
+            if (_languageData.TryGetValue(key, out var keyData))
+            {
+                foreach (var lang in keyData.Keys.ToList())
+                {
+                    _languageData[key][lang] = keyData[lang] switch
+                    {
+                        string => "",
+                        List<string> list => new List<string>(new string[list.Count]),
+                        _ => _languageData[key][lang]
+                    };
+                }
+
+                ShowNotification(new GUIContent("All translations cleared."));
+                _hasUnsavedChanges = true;
+                Repaint();
+            }
         }
 
-        #endregion
-
-        #region File Management Functions
-
-        private void PromptAutoSave(string reason)
+        private void RenameKey(string key)
         {
-            if (_hasUnsavedChanges)
+            if (!_keys.Contains(key)) return;
+            
+            OpenTextEditor(key, (newKey) =>
             {
-                bool save = EditorUtility.DisplayDialog(
-                    "Auto-Save Confirmation",
-                    $"You have unsaved changes. Do you want to save {reason}?",
-                    "Save", "Discard"
-                );
-
-                if (save)
+                if (string.IsNullOrEmpty(newKey))
                 {
-                    SaveWork();
+                    EditorUtility.DisplayDialog("Error", "Key name cannot be empty.", "OK");
+                    return;
+                }
+
+                if (_keys.Contains(newKey))
+                {
+                    EditorUtility.DisplayDialog("Error", $"Key '{newKey}' already exists.", "OK");
+                    return;
+                }
+
+                int index = _keys.IndexOf(key);
+                _keys[index] = newKey;
+                _languageData[newKey] = _languageData[key];
+                _languageData.Remove(key);
+                _selectedKey = newKey;
+                _hasUnsavedChanges = true;
+                Repaint();
+            });
+        }
+
+        private void MergeImportedData(string key, Dictionary<string, object> newData, bool isArrayKey)
+        {
+            foreach (var lang in newData.Keys)
+            {
+                if (!_languageData[key].ContainsKey(lang))
+                    continue;
+
+                if (isArrayKey)
+                {
+                    MergeArrayData(key, lang, newData[lang]);
                 }
                 else
                 {
-                    _hasUnsavedChanges = false;
-                    Repaint();
+                    MergeStringData(key, lang, newData[lang]);
                 }
             }
         }
 
-        private void SaveWork()
+        private void MergeArrayData(string key, string lang, object newValue)
         {
-            SaveLanguages();
-            _hasUnsavedChanges = false;
-        }
+            if (_languageData[key][lang] is not List<string> currentList) return;
 
-        private void ExportLanguages()
-        {
-            var path = EditorUtility.SaveFilePanel(
-                "Export Languages",
-                Application.dataPath,
-                "languages.json",
-                "json"
-            );
-
-            if (!string.IsNullOrEmpty(path))
+            if (newValue is List<string> newList)
             {
-                try
+                for (int i = 0; i < newList.Count; i++)
                 {
-                    var jsonString = JsonConvert.SerializeObject(_languageData, Formatting.Indented);
-
-                    File.WriteAllText(path, jsonString);
-
-                    Debug.Log($"Languages exported successfully to: {path}");
-                }
-                catch (Exception e)
-                {
-                    EditorUtility.DisplayDialog("Export Error",
-                        $"Failed to export languages: {e.Message}", "OK");
-                    Debug.LogError($"Export error: {e}");
-                }
-            }
-        }
-
-
-        private void ImportLanguages()
-        {
-            var path = EditorUtility.OpenFilePanel(
-                "Import Languages",
-                Application.dataPath,
-                "json"
-            );
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                try
-                {
-                    var json = File.ReadAllText(path);
-                    var jsonToMessagePack = MessagePackSerializer.ConvertFromJson(json);
-                    var importedData =
-                        MessagePackSerializer.Deserialize<Dictionary<string, Dictionary<string, object>>>(
-                            jsonToMessagePack, options: MsgpackOptions);
-
-                    if (importedData == null)
+                    if (i < currentList.Count)
                     {
-                        throw new Exception("Invalid JSON format");
-                    }
-
-                    foreach (var key in importedData.Keys.ToList())
-                    {
-                        foreach (var lang in importedData[key].Keys.ToList())
+                        if (string.IsNullOrWhiteSpace(currentList[i]) && !string.IsNullOrWhiteSpace(newList[i]))
                         {
-                            if (importedData[key][lang] is object[] objArray)
-                            {
-                                importedData[key][lang] = objArray.Select(x => x?.ToString()).ToList();
-                            }
-                        }
-                    }
-
-                    if (EditorUtility.DisplayDialog("Import Languages",
-                            "Do you want to merge with existing data or replace it completely?\n\n" +
-                            "- Click 'Merge' to add new entries and update existing ones\n" +
-                            "- Click 'Replace' to remove all existing data and import new data",
-                            "Merge", "Replace"))
-                    {
-                        foreach (var entry in importedData)
-                        {
-                            if (!_languageData.ContainsKey(entry.Key))
-                            {
-                                _keys.Add(entry.Key);
-                            }
-
-                            _languageData[entry.Key] = entry.Value;
-
-                            foreach (var lang in entry.Value.Keys.Where(lang => !_languageCodes.Contains(lang)))
-                            {
-                                _languageCodes.Add(lang);
-                            }
+                            currentList[i] = newList[i];
                         }
                     }
                     else
                     {
-                        _languageData = importedData;
-                        _keys = new List<string>(importedData.Keys);
-                        _languageCodes.Clear();
-                        foreach (var lang in from entry in importedData
-                                             from lang in entry.Value.Keys
-                                             where !_languageCodes.Contains(lang)
-                                             select lang)
-                        {
-                            _languageCodes.Add(lang);
-                        }
+                        currentList.Add(newList[i]);
                     }
-
-                    Debug.Log($"Languages imported successfully from: {path}");
                 }
-                catch (Exception e)
+            }
+            else if (newValue is string strValue && !string.IsNullOrWhiteSpace(strValue))
+            {
+                if (currentList.Count > 0 && string.IsNullOrWhiteSpace(currentList[0]))
                 {
-                    EditorUtility.DisplayDialog("Import Error",
-                        $"Failed to import languages: {e.Message}", "OK");
-                    Debug.LogError($"Import error: {e}");
+                    currentList[0] = strValue;
                 }
+                else
+                {
+                    currentList.Add(strValue);
+                }
+            }
+        }
+
+        private void MergeStringData(string key, string lang, object newValue)
+        {
+            if (_languageData[key][lang] is not string currentText) return;
+
+            string newText = newValue switch
+            {
+                string newStr => newStr,
+                List<string> newList when newList.Count > 0 => newList[0],
+                _ => newValue?.ToString() ?? ""
+            };
+
+            if (string.IsNullOrWhiteSpace(currentText) && !string.IsNullOrWhiteSpace(newText))
+            {
+                _languageData[key][lang] = newText;
             }
         }
 
         private void LoadLanguages()
         {
-            if (File.Exists(LocalizationManager.DmsFilePath))
+            try
             {
-                var loadedData =
-                    LocalizationManager.LoadDmsl<Dictionary<string, Dictionary<string, object>>>(
-                        LocalizationManager.DmsFilePath);
-
-                foreach (var key in loadedData.Keys.ToList())
+                if (File.Exists(LocalizationManager.FilePath))
                 {
-                    foreach (var lang in loadedData[key].Keys.ToList())
+                    _languageData = LocalizationManager.LoadDmsl<Dictionary<string, Dictionary<string, object>>>(LocalizationManager.FilePath);
+                    _keys = new List<string>(_languageData.Keys);
+                    
+                    // Extract available languages from data
+                    _languageCodes.Clear();
+                    _languageCodes.Add("en");
+                    
+                    foreach (var keyData in _languageData.Values)
                     {
-                        if (loadedData[key][lang] is object[] objArray)
+                        foreach (var lang in keyData.Keys)
                         {
-                            loadedData[key][lang] = objArray.Select(x => x?.ToString()).ToList();
+                            if (!_languageCodes.Contains(lang))
+                                _languageCodes.Add(lang);
                         }
                     }
                 }
-
-                foreach (var lang in from entry in loadedData
-                                     from lang in entry.Value.Keys
-                                     where !_languageCodes.Contains(lang)
-                                     select lang)
+                else
                 {
-                    _languageCodes.Add(lang);
+                    _languageData = new Dictionary<string, Dictionary<string, object>>();
+                    _keys = new List<string>();
                 }
-
-                _languageData = loadedData;
-                _keys = new List<string>(_languageData.Keys);
             }
-            else
+            catch (Exception ex)
             {
-                Debug.LogWarning("Language file not found. A new one will be created on save.");
+                Debug.LogError($"Error loading language data: {ex.Message}");
+                _languageData = new Dictionary<string, Dictionary<string, object>>();
+                _keys = new List<string>();
             }
         }
 
         private void SaveLanguages()
         {
-            foreach (var key in _languageData.Keys.ToList())
+            try
             {
-                foreach (var lang in _languageData[key].Keys.ToList())
-                {
-                    if (_languageData[key][lang] is object[] objArray)
-                    {
-                        _languageData[key][lang] = objArray.Select(x => x?.ToString()).ToList();
-                    }
-                }
+                LocalizationManager.SaveDmsl(LocalizationManager.FilePath, _languageData);
+                _hasUnsavedChanges = false;
+                ShowNotification(new GUIContent("Language data saved successfully!"));
+                Debug.Log("[LocalizationEditor] Language data saved.");
             }
-
-            var orderedData = new Dictionary<string, Dictionary<string, object>>();
-            foreach (var key in _keys)
+            catch (Exception ex)
             {
-                if (_languageData.TryGetValue(key, out var text))
-                {
-                    orderedData.Add(key, text);
-                }
+                EditorUtility.DisplayDialog("Error", $"Failed to save language data: {ex.Message}", "OK");
+                Debug.LogError($"[LocalizationEditor] Error saving language data: {ex}");
             }
-
-            LocalizationManager.SaveDmsl(LocalizationManager.DmsFilePath, orderedData);
-            AssetDatabase.Refresh();
-            Debug.Log("Languages saved.");
-            _hasUnsavedChanges = false;
-            Repaint();
         }
 
-        #endregion
-
-        #region Translation Functions
-
-        private string ProtectPlaceholders(string text, out Dictionary<string, string> placeholderMap)
+        private void ExportLanguages()
         {
-            placeholderMap = new Dictionary<string, string>();
-            var regex = new Regex(@"\{(\d+)\}");
-            var map = placeholderMap;
-            var protectedText = regex.Replace(text, match =>
-            {
-                var token = $"<x>{match.Value}</x>";
-                map[token] = match.Value;
-                return token;
-            });
-            return protectedText;
-        }
-
-        private string RestorePlaceholders(string text, Dictionary<string, string> placeholderMap)
-        {
-            return placeholderMap.Keys.Aggregate(text,
-                (current, token) => current.Replace(token, placeholderMap[token]));
-        }
-
-        private async Task<string> TranslateText(string text, string targetLanguageCode)
-        {
-            var protectedText = ProtectPlaceholders(text, out var placeholderMap);
-
-            var requestData = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("auth_key", DeeplApiKey),
-                new KeyValuePair<string, string>("text", protectedText),
-                new KeyValuePair<string, string>("source_lang", "EN"),
-                new KeyValuePair<string, string>("target_lang", targetLanguageCode),
-                new KeyValuePair<string, string>("tag_handling", "xml")
-            });
+            string path = EditorUtility.SaveFilePanel("Export Language Data", "", "languages", "json");
+            if (string.IsNullOrEmpty(path)) return;
 
             try
             {
-                var response = await _httpClient.PostAsync(DeeplApiUrl, requestData);
-                response.EnsureSuccessStatusCode();
-
-                var content = await response.Content.ReadAsStringAsync();
-                var json = JObject.Parse(content);
-
-                var translation = json["translations"]?[0]?["text"]?.ToString();
-
-                return translation != null
-                    ? RestorePlaceholders(translation, placeholderMap)
-                    : "Translation not available";
+                string json = JsonConvert.SerializeObject(_languageData, Formatting.Indented);
+                File.WriteAllText(path, json);
+                ShowNotification(new GUIContent("Language data exported successfully!"));
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex)
             {
-                Debug.LogError($"Request error: {ex.Message}");
-                return "";
+                EditorUtility.DisplayDialog("Error", $"Failed to export language data: {ex.Message}", "OK");
             }
+        }
+
+        private void ImportLanguages()
+        {
+            string path = EditorUtility.OpenFilePanel("Import Language Data", "", "json");
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                var importedData = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, object>>>(json);
+                
+                if (EditorUtility.DisplayDialog("Confirm Import",
+                        "This will replace all existing language data. Are you sure?",
+                        "Yes", "Cancel"))
+                {
+                    _languageData = importedData;
+                    _keys = new List<string>(_languageData.Keys);
+                    _hasUnsavedChanges = true;
+                    Repaint();
+                    ShowNotification(new GUIContent("Language data imported successfully!"));
+                }
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Error", $"Failed to import language data: {ex.Message}", "OK");
+            }
+        }
+
+        private void PromptAutoSave(string context)
+        {
+            if (!_hasUnsavedChanges) return;
+            
+            if (EditorUtility.DisplayDialog("Unsaved Changes",
+                    $"You have unsaved changes. Would you like to save them {context}?",
+                    "Save", "Don't Save"))
+            {
+                SaveLanguages();
+            }
+            else
+            {
+                _hasUnsavedChanges = false;
+            }
+        }
+
+        private static void OpenTextEditor(string text, Action<string> onSave)
+        {
+            LocalizationTextEditorPopup.Open(text, onSave);
         }
 
         private async Task TranslateAndFill(string key)
         {
-            if (!_languageData.ContainsKey(key)) return;
+            if (!_languageData.TryGetValue(key, out var keyData)) return;
+            if (keyData["en"] is not string sourceText) return;
 
-            foreach (var lang in _languageCodes.Where(lang => lang != "en"))
+            foreach (var lang in _languageCodes.Where(l => l != "en"))
             {
-                switch (_languageData[key]["en"])
+                if (!string.IsNullOrWhiteSpace(keyData[lang]?.ToString())) continue;
+
+                try
                 {
-                    case string defaultText when !string.IsNullOrWhiteSpace(defaultText):
-                        {
-                            if (_languageData[key][lang] is string currentText && string.IsNullOrWhiteSpace(currentText))
-                            {
-                                var translatedText = await TranslateText(defaultText, lang);
-                                _languageData[key][lang] = translatedText;
-                            }
-
-                            break;
-                        }
-                    case List<string> defaultArray when _languageData[key][lang] is List<string> currentArray:
-                        {
-                            for (var i = 0; i < defaultArray.Count; i++)
-                            {
-                                var defaultItem = defaultArray[i] ?? "";
-
-                                if (i >= currentArray.Count)
-                                {
-                                    currentArray.Add("");
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(currentArray[i])) continue;
-
-                                var translatedText = await TranslateText(defaultItem, lang);
-                                currentArray[i] = translatedText;
-                                Task.Delay(400).Wait();
-                            }
-
-                            break;
-                        }
+                    var translated = await TranslateText(sourceText, "en", lang);
+                    if (!string.IsNullOrEmpty(translated))
+                    {
+                        keyData[lang] = translated;
+                        _hasUnsavedChanges = true;
+                        Repaint();
+                    }
                 }
-
-                Task.Delay(400).Wait();
-                Repaint();
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Translation error for {lang}: {ex.Message}");
+                }
             }
+        }
 
-            Debug.Log($"Translations updated for key: {key}");
+        private async Task<string> TranslateText(string text, string sourceLang, string targetLang)
+        {
+            // DeepL language code mapping
+            string deeplLang = targetLang switch
+            {
+                "zh" => "ZH",
+                "zh-Hant" => "ZH",
+                "pt" => "PT-PT",
+                _ => targetLang.ToUpper()
+            };
+
+            var content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("auth_key", DeeplApiKey),
+                new KeyValuePair<string, string>("text", text),
+                new KeyValuePair<string, string>("source_lang", sourceLang.ToUpper()),
+                new KeyValuePair<string, string>("target_lang", deeplLang)
+            });
+
+            try
+            {
+                var response = await _httpClient.PostAsync(DeeplApiUrl, content);
+                response.EnsureSuccessStatusCode();
+                
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<DeepLResponse>(responseJson);
+                
+                return result?.translations?.FirstOrDefault()?.text ?? text;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"DeepL translation failed: {ex.Message}");
+                return text;
+            }
+        }
+
+        private class DeepLResponse
+        {
+            public List<DeepLTranslation> translations { get; set; }
+        }
+
+        private class DeepLTranslation
+        {
+            public string text { get; set; }
         }
 
         #endregion
