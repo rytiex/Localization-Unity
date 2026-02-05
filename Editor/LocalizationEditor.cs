@@ -83,6 +83,10 @@ namespace PicoShot.Localization
 
         private void OnEnable()
         {
+            // Ensure data structures are initialized (readonly fields already have default values)
+            _languageData ??= new Dictionary<string, Dictionary<string, object>>();
+            _keys ??= new List<string>();
+            
             LoadLanguages();
             CompilationPipeline.compilationStarted += OnBeforeCompile;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
@@ -373,7 +377,7 @@ namespace PicoShot.Localization
 
                 if (_languageData.TryGetValue(_selectedKey, out var text))
                 {
-                    if (text["en"] is List<string>)
+                    if (IsArrayKey(text))
                         DrawArrayKeyContent(_selectedKey);
                     else
                         DrawStringKeyContent(_selectedKey);
@@ -463,6 +467,8 @@ namespace PicoShot.Localization
 
             var filteredKeys = FilterKeys().ToList();
             int totalKeyCount = filteredKeys.Count;
+            
+
 
             float viewportHeight = position.height - 300f;
             int maxVisibleItems = Mathf.CeilToInt(viewportHeight / _keyItemHeight) + 1;
@@ -481,13 +487,16 @@ namespace PicoShot.Localization
                 new Rect(0, 0, listPanelWidth - 20, totalContentHeight)
             );
 
-            int startIndex = Mathf.FloorToInt(_keysListScroll.y / _keyItemHeight);
-            startIndex = Mathf.Max(0, startIndex);
-            int endIndex = Mathf.Min(startIndex + maxVisibleItems, totalKeyCount);
-
-            for (int i = startIndex; i < endIndex; i++)
+            if (totalKeyCount > 0)
             {
-                DrawKeyListItem(filteredKeys[i], i, listPanelWidth);
+                int startIndex = Mathf.FloorToInt(_keysListScroll.y / _keyItemHeight);
+                startIndex = Mathf.Max(0, startIndex);
+                int endIndex = Mathf.Min(startIndex + maxVisibleItems, totalKeyCount);
+
+                for (int i = startIndex; i < endIndex; i++)
+                {
+                    DrawKeyListItem(filteredKeys[i], i, listPanelWidth);
+                }
             }
 
             GUI.EndScrollView();
@@ -499,7 +508,17 @@ namespace PicoShot.Localization
             Rect keyRect = new Rect(4, index * _keyItemHeight, width - 8, _keyItemHeight);
 
             GUIStyle keyStyle = GetKeyButtonStyle(key == _selectedKey);
-            string typeIndicator = _languageData[key]["en"] is List<string> ? "[ ]" : "Aa";
+            
+            // Check if key has any data and determine type
+            string typeIndicator = "Aa"; // Default to string
+            if (_languageData.TryGetValue(key, out var keyData) && keyData.Count > 0)
+            {
+                // Get first value to determine type
+                var firstValue = keyData.Values.FirstOrDefault();
+                if (firstValue is List<string> || firstValue is string[])
+                    typeIndicator = "[ ]";
+            }
+            
             string buttonLabel = $"<color=#888888>{typeIndicator}</color> {key}";
 
             if (GUI.Button(keyRect, buttonLabel, keyStyle))
@@ -1078,8 +1097,12 @@ namespace PicoShot.Localization
         private void DrawArrayControlsIfNeeded(LocalizationTextComponent langComponent)
         {
             if (langComponent.TranslationKey == null) return;
-            if (!_languageData.ContainsKey(langComponent.TranslationKey)) return;
-            if (_languageData[langComponent.TranslationKey]["en"] is not List<string> array) return;
+            if (!_languageData.TryGetValue(langComponent.TranslationKey, out var keyData)) return;
+            if (!IsArrayKey(keyData)) return;
+            
+            // Get the array from the first available language
+            var firstValue = GetFirstValue(keyData);
+            if (firstValue is not List<string> array) return;
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Array Index:", GUILayout.Width(100));
@@ -1220,7 +1243,8 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space(5);
 
-            var array = (List<string>)_languageData[key]["en"];
+            var firstValue = GetFirstValue(_languageData[key]);
+            var array = firstValue as List<string> ?? new List<string>();
             DrawArrayElements(key, array);
 
             EditorGUILayout.EndVertical();
@@ -1228,13 +1252,11 @@ namespace PicoShot.Localization
 
         private void AddArrayElement(string key)
         {
-            var enArray = (List<string>)_languageData[key]["en"];
-            enArray.Add("");
-            foreach (var lang in _languageCodes.Where(l => l != "en"))
+            foreach (var lang in _languageCodes)
             {
-                if (_languageData[key][lang] is List<string> otherArray)
+                if (_languageData[key][lang] is List<string> langArray)
                 {
-                    otherArray.Add("");
+                    langArray.Add("");
                 }
             }
             _hasUnsavedChanges = true;
@@ -1483,6 +1505,35 @@ namespace PicoShot.Localization
 
         #region Helper Functions
 
+        /// <summary>
+        /// Checks if a key's data represents an array type.
+        /// </summary>
+        private bool IsArrayKey(Dictionary<string, object> keyData)
+        {
+            if (keyData == null || keyData.Count == 0) return false;
+            var firstValue = keyData.Values.FirstOrDefault();
+            return firstValue is List<string> || firstValue is string[];
+        }
+
+        /// <summary>
+        /// Gets the first available value for a key, checking multiple language fallbacks.
+        /// </summary>
+        private object GetFirstValue(Dictionary<string, object> keyData)
+        {
+            if (keyData == null || keyData.Count == 0) return null;
+            
+            // Try common language codes in order
+            string[] tryLangs = { "en", "en-US", "en-GB" };
+            foreach (var lang in tryLangs)
+            {
+                if (keyData.TryGetValue(lang, out var value))
+                    return value;
+            }
+            
+            // Return first available
+            return keyData.Values.FirstOrDefault();
+        }
+
         private IEnumerable<string> FilterKeys()
         {
             string lowercaseFilter = _keySearchFilter?.ToLower() ?? "";
@@ -1497,11 +1548,11 @@ namespace PicoShot.Localization
 
             if (_showArrayKeysOnly)
             {
-                query = query.Where(key => _languageData[key]["en"] is List<string>);
+                query = query.Where(key => IsArrayKey(_languageData[key]));
             }
             else if (_showStringKeysOnly)
             {
-                query = query.Where(key => _languageData[key]["en"] is string);
+                query = query.Where(key => !IsArrayKey(_languageData[key]));
             }
 
             if (_sortKeysByName)
@@ -1525,8 +1576,11 @@ namespace PicoShot.Localization
 
         private void ClearEmptyArrayElements(string key)
         {
-            var enArray = (List<string>)_languageData[key]["en"];
-            for (var i = enArray.Count - 1; i >= 0; i--)
+            // Get array count from first available language
+            var firstValue = GetFirstValue(_languageData[key]);
+            if (firstValue is not List<string> firstArray) return;
+            
+            for (var i = firstArray.Count - 1; i >= 0; i--)
             {
                 var isEmpty = true;
                 foreach (var lang in _languageCodes)
@@ -1632,18 +1686,20 @@ namespace PicoShot.Localization
 
         private void AddLanguageToKey(string key, string language)
         {
-            switch (_languageData[key]["en"])
+            var firstValue = GetFirstValue(_languageData[key]);
+            
+            switch (firstValue)
             {
-                case string:
-                    _languageData[key][language] = "";
-                    break;
-                case List<string> enArray:
+                case List<string> arr:
                     var newArray = new List<string>();
-                    for (var i = 0; i < enArray.Count; i++)
+                    for (var i = 0; i < arr.Count; i++)
                     {
                         newArray.Add("");
                     }
                     _languageData[key][language] = newArray;
+                    break;
+                default:
+                    _languageData[key][language] = "";
                     break;
             }
         }
@@ -1915,9 +1971,32 @@ namespace PicoShot.Localization
         private async Task TranslateAndFill(string key)
         {
             if (!_languageData.TryGetValue(key, out var keyData)) return;
-            if (keyData["en"] is not string sourceText) return;
+            
+            // Find a source text (prefer English, but use first available string)
+            string sourceText = null;
+            string sourceLang = "en";
+            
+            if (keyData.TryGetValue("en", out var enValue) && enValue is string enStr)
+            {
+                sourceText = enStr;
+            }
+            else
+            {
+                // Find first string value
+                foreach (var kvp in keyData)
+                {
+                    if (kvp.Value is string str && !string.IsNullOrWhiteSpace(str))
+                    {
+                        sourceText = str;
+                        sourceLang = kvp.Key;
+                        break;
+                    }
+                }
+            }
+            
+            if (string.IsNullOrWhiteSpace(sourceText)) return;
 
-            foreach (var lang in _languageCodes.Where(l => l != "en"))
+            foreach (var lang in _languageCodes.Where(l => l != sourceLang))
             {
                 if (!string.IsNullOrWhiteSpace(keyData[lang]?.ToString())) continue;
 

@@ -133,8 +133,8 @@ namespace PicoShot.Localization.Data
             }
 
             // Read string pool
-            ms.Position = (long)header.StringPoolOffset;
-            var stringPool = ReadStringPool(reader, header.StringCount);
+            ms.Position = (long)header.StringPoolOffset + 4; // Skip count, we already know it from header
+            var stringPool = ReadStringPool(reader, header.StringCount, header.StringPoolOffset);
 
             // Read arrays if present
             string[][] arrays = null;
@@ -215,7 +215,7 @@ namespace PicoShot.Localization.Data
             reader.ReadUInt64(); // Skip reserved
 
             return (magic, version, flags, entryCount, arrayCount, stringCount,
-                stringPoolOffset, entryTableOffset, entryTableOffset, payloadSize);
+                stringPoolOffset, entryTableOffset, arrayTableOffset, payloadSize);
         }
 
         private static List<string> BuildStringPool(Dictionary<string, Dictionary<string, object>> translations)
@@ -315,11 +315,14 @@ namespace PicoShot.Localization.Data
             }
         }
 
-        private static string[] ReadStringPool(BinaryReader reader, uint count)
+        private static string[] ReadStringPool(BinaryReader reader, uint count, ulong stringPoolOffset)
         {
             var strings = new string[count];
             var lengths = new ushort[count];
             var offsets = new uint[count];
+            
+            // Note: Count was already read by the caller to get to this position
+            // We are positioned right after the count field
             
             // Read length table
             for (int i = 0; i < count; i++)
@@ -333,13 +336,11 @@ namespace PicoShot.Localization.Data
                 offsets[i] = reader.ReadUInt32();
             }
             
-            // Calculate data start position
-            long dataStart = reader.BaseStream.Position;
-            
             // Read data
+            // Offsets stored in file are relative to stringPoolOffset (start of string pool section)
             for (int i = 0; i < count; i++)
             {
-                reader.BaseStream.Position = dataStart + offsets[i];
+                reader.BaseStream.Position = (long)stringPoolOffset + offsets[i];
                 byte[] bytes = reader.ReadBytes(lengths[i]);
                 strings[i] = Encoding.UTF8.GetString(bytes);
             }
