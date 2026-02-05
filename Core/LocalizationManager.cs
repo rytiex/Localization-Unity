@@ -24,8 +24,14 @@ namespace PicoShot.Localization
 
         #region Configuration
 
-        public static readonly string LanguagesDirectory = Path.Combine("languages");
-        public static string LanguagesPath => Path.Combine(Application.streamingAssetsPath, LanguagesDirectory);
+        public static readonly string LanguagesDirectory = "Locales";
+
+        /// <summary>
+        /// Gets the path to the locales directory (root of game in builds, project root in Editor).
+        /// </summary>
+        public static string LanguagesPath => Path.Combine(
+            Path.GetDirectoryName(Application.dataPath),
+            LanguagesDirectory);
 
         private const string DefaultLanguageCode = "en";
         private const string FileExtension = ".bloc";

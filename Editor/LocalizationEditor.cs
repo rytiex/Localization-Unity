@@ -75,7 +75,7 @@ namespace PicoShot.Localization
 
         #region Unity Functions
 
-        [MenuItem("Tools/Language Editor")]
+        [MenuItem("Tools/Localization/Localization Editor")]
         public static void OpenWindow()
         {
             GetWindow<LocalizationEditor>("Language Editor");
@@ -2092,7 +2092,6 @@ namespace PicoShot.Localization
                 response.EnsureSuccessStatusCode();
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                
 
                 string translated = ParseDeepLResponse(responseJson);
                 return translated ?? text;
