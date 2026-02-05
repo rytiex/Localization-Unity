@@ -24,7 +24,7 @@ namespace PicoShot.Localization
 
         #region Configuration
 
-        public static readonly string LanguagesFilePath = Path.Combine("languages", "languages.loc");
+        public static readonly string LanguagesFilePath = Path.Combine("languages", "languages.bloc");
         public static string FilePath => Path.Combine(Application.streamingAssetsPath, LanguagesFilePath);
 
         private const string DefaultLanguageCode = "en";
@@ -103,8 +103,8 @@ namespace PicoShot.Localization
 
             try
             {
-                var data = LanguageSerializer.DeserializeFromFile(FilePath);
-                _availableLanguages = LanguageSerializer.GetAvailableLanguages(data);
+                var data = BlocSerializer.DeserializeFromFile(FilePath);
+                _availableLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var entry in data.Translations)
                 {
@@ -113,6 +113,8 @@ namespace PicoShot.Localization
 
                     foreach (string langCode in entry.Value.Keys)
                     {
+                        _availableLanguages.Add(langCode);
+                        
                         if (!_languageKeyMap.TryGetValue(langCode, out var keys))
                         {
                             keys = new HashSet<string>(StringComparer.Ordinal);
@@ -184,18 +186,59 @@ namespace PicoShot.Localization
 
         private static void LoadLanguageData(string languageCode)
         {
-            var data = LanguageSerializer.DeserializeFromFile(FilePath);
+            var data = BlocSerializer.DeserializeFromFile(FilePath);
             
-            _currentLanguageData = LanguageSerializer.ExtractLanguageDictionary(data, languageCode, DefaultLanguageCode);
+            _currentLanguageData = ExtractLanguageDictionary(data, languageCode, DefaultLanguageCode);
             
             if (languageCode != DefaultLanguageCode)
             {
-                _fallbackLanguageData = LanguageSerializer.ExtractLanguageDictionary(data, DefaultLanguageCode, null);
+                _fallbackLanguageData = ExtractLanguageDictionary(data, DefaultLanguageCode, null);
             }
             else
             {
                 _fallbackLanguageData = _currentLanguageData;
             }
+        }
+        
+        private static Dictionary<string, object> ExtractLanguageDictionary(LanguageData data, string languageCode, string fallbackCode)
+        {
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+
+            if (data?.Translations == null)
+                return result;
+
+            foreach (var entry in data.Translations)
+            {
+                string key = entry.Key;
+                var translations = entry.Value;
+
+                // Try to get translation in requested language
+                if (translations.TryGetValue(languageCode, out var value))
+                {
+                    result[key] = NormalizeValue(value);
+                }
+                // Fall back if needed
+                else if (languageCode != fallbackCode && fallbackCode != null && translations.TryGetValue(fallbackCode, out var fallbackValue))
+                {
+                    result[key] = NormalizeValue(fallbackValue);
+                }
+            }
+
+            return result;
+        }
+        
+        private static object NormalizeValue(object value)
+        {
+            if (value == null)
+                return null;
+
+            if (value is List<string>)
+                return value;
+
+            if (value is string[] stringArray)
+                return new List<string>(stringArray);
+
+            return value?.ToString();
         }
 
         /// <summary>
@@ -415,7 +458,7 @@ namespace PicoShot.Localization
         /// </summary>
         public static void SaveToFile(string path, LanguageData data)
         {
-            LanguageSerializer.SaveToFile(path, data);
+            BlocSerializer.SaveToFile(path, data);
         }
 
         /// <summary>
@@ -423,7 +466,7 @@ namespace PicoShot.Localization
         /// </summary>
         public static LanguageData LoadFromFile(string path)
         {
-            return LanguageSerializer.DeserializeFromFile(path);
+            return BlocSerializer.DeserializeFromFile(path);
         }
 
         #endregion
