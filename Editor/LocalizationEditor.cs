@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor.Compilation;
 using PicoShot.Localization.Data;
+using PicoShot.Localization.Rtl;
 
 namespace PicoShot.Localization
 {
@@ -82,7 +83,6 @@ namespace PicoShot.Localization
             GetWindow<LocalizationEditor>("Language Editor");
         }
 
-        [Obsolete("Obsolete")]
         private void OnEnable()
         {
             LoadLanguages();
@@ -90,7 +90,6 @@ namespace PicoShot.Localization
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
-        [Obsolete("Obsolete")]
         private void OnDisable()
         {
             UnregisterEventHandlers();
@@ -806,7 +805,7 @@ namespace PicoShot.Localization
                 GUI.enabled = !string.IsNullOrEmpty(_testRtl);
                 if (GUILayout.Button("Test", GUILayout.Width(60)))
                 {
-                    _testResult = LocalizationRtlManager.Fix(_testRtl);
+                    _testResult = RtlTextHandler.Fix(_testRtl);
                     GUI.FocusControl(null);
                 }
                 GUI.enabled = true;
@@ -1985,7 +1984,8 @@ namespace PicoShot.Localization
             {
                 if (File.Exists(LocalizationManager.FilePath))
                 {
-                    _languageData = LocalizationManager.LoadDmsl<Dictionary<string, Dictionary<string, object>>>(LocalizationManager.FilePath);
+                    var loadedData = LocalizationManager.LoadFromFile(LocalizationManager.FilePath);
+                    _languageData = loadedData.Translations;
                     _keys = new List<string>(_languageData.Keys);
                     
                     // Extract available languages from data
@@ -2019,7 +2019,8 @@ namespace PicoShot.Localization
         {
             try
             {
-                LocalizationManager.SaveDmsl(LocalizationManager.FilePath, _languageData);
+                var saveData = new LanguageData { Translations = _languageData };
+                LocalizationManager.SaveToFile(LocalizationManager.FilePath, saveData);
                 _hasUnsavedChanges = false;
                 ShowNotification(new GUIContent("Language data saved successfully!"));
                 Debug.Log("[LocalizationEditor] Language data saved.");

@@ -108,20 +108,6 @@ namespace PicoShot.Localization.Data
         }
 
         /// <summary>
-        /// Converts the old MessagePack format data structure to the new format.
-        /// This is a compatibility method for migrating existing data.
-        /// </summary>
-        public static LanguageData ConvertFromLegacyFormat(Dictionary<string, Dictionary<string, object>> legacyData)
-        {
-            var languageData = new LanguageData
-            {
-                Translations = legacyData
-            };
-
-            return languageData;
-        }
-
-        /// <summary>
         /// Extracts a flattened dictionary for a specific language from the language data.
         /// </summary>
         public static Dictionary<string, object> ExtractLanguageDictionary(

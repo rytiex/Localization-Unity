@@ -14,98 +14,6 @@ namespace PicoShot.Localization
     /// </summary>
     public static class LocalizationManager
     {
-        #region Backward Compatibility
-
-        // These properties provide backward compatibility for existing code
-        [Obsolete("Use LanguageDefinitions.LanguageNames instead")]
-        public static Dictionary<string, string> LanguageNames => LanguageDefinitions.LanguageNames;
-
-        [Obsolete("Use LanguageDefinitions.NativeLanguageNames instead")]
-        public static Dictionary<string, string> NativeLanguageNames => LanguageDefinitions.NativeLanguageNames;
-
-        [Obsolete("Use LanguageDefinitions.FallbackLanguages instead")]
-        public static Dictionary<string, string> FallbackLanguages => LanguageDefinitions.FallbackLanguages;
-
-        [Obsolete("Use LocalizationManager.FilePath instead")]
-        public static string DmsFilePath => FilePath;
-
-        [Obsolete("Use LanguageDefinitions.DefaultLanguage instead")]
-        public static string FallbackLanguage => LanguageDefinitions.DefaultLanguage;
-
-        /// <summary>
-        /// Gets the current language code.
-        /// </summary>
-        [Obsolete("Use CurrentLanguage property instead")]
-        public static string GetCurrentLanguage() => CurrentLanguage;
-
-        /// <summary>
-        /// Checks if the manager is initialized.
-        /// </summary>
-        [Obsolete("Use IsInitialized property instead")]
-        public static bool IsInitialized() => IsInitialized;
-
-        /// <summary>
-        /// Gets the system language from Unity settings.
-        /// </summary>
-        [Obsolete("Use LanguageDefinitions.FromSystemLanguage instead")]
-        public static string GetSystemLanguage() => LanguageDefinitions.FromSystemLanguage(Application.systemLanguage);
-
-        /// <summary>
-        /// Detects language from system locale with fallback logic.
-        /// </summary>
-        [Obsolete("Use DetectSystemLanguage instead")]
-        public static string DetectLanguageFromSystemLocale() => DetectSystemLanguage();
-
-        /// <summary>
-        /// Checks if the specified language is RTL.
-        /// </summary>
-        [Obsolete("Use LanguageDefinitions.IsRightToLeft instead")]
-        public static bool IsRightToLeft(string language = null)
-        {
-            return LanguageDefinitions.IsRightToLeft(language ?? CurrentLanguage);
-        }
-
-        /// <summary>
-        /// Saves language data to file (for editor use).
-        /// </summary>
-        public static void SaveDmsl(string path, object data)
-        {
-            if (data is Dictionary<string, Dictionary<string, object>> dict)
-            {
-                var languageData = LanguageSerializer.ConvertFromLegacyFormat(dict);
-                LanguageSerializer.SaveToFile(path, languageData);
-            }
-            else if (data is LanguageData langData)
-            {
-                LanguageSerializer.SaveToFile(path, langData);
-            }
-            else
-            {
-                throw new ArgumentException("Data must be Dictionary<string, Dictionary<string, object>> or LanguageData");
-            }
-        }
-
-        /// <summary>
-        /// Loads language data from file (for editor use).
-        /// </summary>
-        public static T LoadDmsl<T>(string path)
-        {
-            if (typeof(T) == typeof(Dictionary<string, Dictionary<string, object>>))
-            {
-                var data = LanguageSerializer.DeserializeFromFile(path);
-                return (T)(object)data.Translations;
-            }
-            
-            if (typeof(T) == typeof(LanguageData))
-            {
-                return (T)(object)LanguageSerializer.DeserializeFromFile(path);
-            }
-
-            throw new NotSupportedException($"Type {typeof(T).Name} is not supported");
-        }
-
-        #endregion
-
         #region Events
 
         public static event Action OnLanguageChanged;
@@ -116,7 +24,7 @@ namespace PicoShot.Localization
 
         #region Configuration
 
-        public static readonly string LanguagesFilePath = Path.Combine("languages", "languages.dmsl");
+        public static readonly string LanguagesFilePath = Path.Combine("languages", "languages.loc");
         public static string FilePath => Path.Combine(Application.streamingAssetsPath, LanguagesFilePath);
 
         private const string DefaultLanguageCode = "en";
@@ -128,13 +36,9 @@ namespace PicoShot.Localization
         private static string _currentLanguageCode = DefaultLanguageCode;
         private static bool _isInitialized;
 
-        // Current language data: Key -> Value (string or List<string>)
         private static Dictionary<string, object> _currentLanguageData;
-        
-        // Fallback language data for missing translations
         private static Dictionary<string, object> _fallbackLanguageData;
 
-        // Metadata
         private static HashSet<string> _allTranslationKeys;
         private static HashSet<string> _availableLanguages;
         private static Dictionary<string, HashSet<string>> _languageKeyMap;
@@ -192,9 +96,6 @@ namespace PicoShot.Localization
             }
         }
 
-        /// <summary>
-        /// Loads metadata from the language file without loading all translations.
-        /// </summary>
         private static void LoadLanguageMetadata()
         {
             _allTranslationKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -235,8 +136,6 @@ namespace PicoShot.Localization
         /// <summary>
         /// Sets the current language.
         /// </summary>
-        /// <param name="languageCode">The language code (e.g., "en", "ar")</param>
-        /// <param name="useFallback">Whether to use fallback language if specified one is not available</param>
         public static void SetLanguage(string languageCode, bool useFallback = true)
         {
             if (string.IsNullOrEmpty(languageCode))
@@ -268,9 +167,6 @@ namespace PicoShot.Localization
             }
         }
 
-        /// <summary>
-        /// Resolves the target language code, applying fallback logic if needed.
-        /// </summary>
         private static string ResolveTargetLanguage(string requestedCode, bool useFallback)
         {
             if (_availableLanguages.Contains(requestedCode))
@@ -286,9 +182,6 @@ namespace PicoShot.Localization
             return DefaultLanguageCode;
         }
 
-        /// <summary>
-        /// Loads translation data for the specified language.
-        /// </summary>
         private static void LoadLanguageData(string languageCode)
         {
             var data = LanguageSerializer.DeserializeFromFile(FilePath);
@@ -321,9 +214,6 @@ namespace PicoShot.Localization
         /// <summary>
         /// Gets a translated string by key.
         /// </summary>
-        /// <param name="key">Translation key</param>
-        /// <param name="args">Optional format arguments</param>
-        /// <returns>Translated text or the key if not found</returns>
         public static string GetText(string key, params string[] args)
         {
             if (string.IsNullOrEmpty(key))
@@ -344,7 +234,6 @@ namespace PicoShot.Localization
                 text = string.Format(text, args);
             }
 
-            // Apply RTL fix if needed
             if (IsRightToLeft)
             {
                 text = RtlTextHandler.Fix(text);
@@ -353,12 +242,8 @@ namespace PicoShot.Localization
             return text;
         }
 
-        /// <summary>
-        /// Gets a translated string without applying RTL fix or formatting.
-        /// </summary>
         private static string GetRawText(string key)
         {
-            // Try current language
             if (_currentLanguageData.TryGetValue(key, out var value))
             {
                 if (value is List<string> list)
@@ -366,7 +251,6 @@ namespace PicoShot.Localization
                 return value?.ToString() ?? key;
             }
 
-            // Try fallback
             if (_fallbackLanguageData.TryGetValue(key, out var fallbackValue))
             {
                 OnMissingTranslation?.Invoke($"Using fallback for key '{key}' in '{_currentLanguageCode}'");
@@ -375,7 +259,6 @@ namespace PicoShot.Localization
                 return fallbackValue?.ToString() ?? key;
             }
 
-            // Not found
             OnMissingTranslation?.Invoke($"Missing translation for key '{key}' in '{_currentLanguageCode}'");
             return key;
         }
@@ -401,7 +284,6 @@ namespace PicoShot.Localization
             if (array == null)
                 return null;
 
-            // Apply RTL fix if needed
             if (IsRightToLeft)
             {
                 for (int i = 0; i < array.Length; i++)
@@ -437,13 +319,11 @@ namespace PicoShot.Localization
 
         private static string[] GetArrayInternal(string key)
         {
-            // Try current language
             if (_currentLanguageData.TryGetValue(key, out var value))
             {
                 return ConvertToStringArray(value);
             }
 
-            // Try fallback
             if (_fallbackLanguageData.TryGetValue(key, out var fallbackValue))
             {
                 OnMissingTranslation?.Invoke($"Using fallback for array key '{key}' in '{_currentLanguageCode}'");
@@ -475,7 +355,6 @@ namespace PicoShot.Localization
         /// <summary>
         /// Gets available languages.
         /// </summary>
-        /// <param name="withNativeNames">If true, returns native names; otherwise returns English names</param>
         public static IEnumerable<string> GetAvailableLanguages(bool withNativeNames = false)
         {
             if (_languageKeyMap == null || _languageKeyMap.Count == 0)
@@ -529,26 +408,22 @@ namespace PicoShot.Localization
 
         #endregion
 
-        #region Legacy Support Methods
+        #region Editor Support
 
         /// <summary>
-        /// Subscribes to language change events.
+        /// Saves language data to file (for editor use).
         /// </summary>
-        [Obsolete("Use OnLanguageChanged event directly")]
-        public static void Subscribe(Action callback)
+        public static void SaveToFile(string path, LanguageData data)
         {
-            if (callback != null)
-                OnLanguageChanged += callback;
+            LanguageSerializer.SaveToFile(path, data);
         }
 
         /// <summary>
-        /// Unsubscribes from language change events.
+        /// Loads language data from file (for editor use).
         /// </summary>
-        [Obsolete("Use OnLanguageChanged event directly")]
-        public static void Unsubscribe(Action callback)
+        public static LanguageData LoadFromFile(string path)
         {
-            if (callback != null)
-                OnLanguageChanged -= callback;
+            return LanguageSerializer.DeserializeFromFile(path);
         }
 
         #endregion
