@@ -283,16 +283,13 @@ namespace PicoShot.Localization
                 return;
             }
 
-            // Filter out empty options
             options = options.Where(opt => !string.IsNullOrEmpty(opt)).ToArray();
 
-            // Apply size limit
             if (arraySizeLimit > 0 && options.Length > arraySizeLimit)
             {
                 options = options.Take(arraySizeLimit).ToArray();
             }
 
-            // Apply text processors
             for (int i = 0; i < options.Length; i++)
             {
                 options[i] = ApplyProcessors(options[i]);
@@ -302,7 +299,6 @@ namespace PicoShot.Localization
             _tmpDropdown.ClearOptions();
             _tmpDropdown.AddOptions(options.ToList());
 
-            // Restore selection if still valid
             if (selectedValue < options.Length)
             {
                 _tmpDropdown.value = selectedValue;

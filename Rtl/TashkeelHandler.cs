@@ -23,11 +23,9 @@ namespace PicoShot.Localization.Rtl
     /// </summary>
     internal static class TashkeelHandler
     {
-        // Pre-allocated buffers to minimize GC
         private static readonly StringBuilder InternalBuilder = new(1024);
         private static readonly List<TashkeelPosition> TashkeelPositions = new(64);
 
-        // Unicode ranges for tashkeel characters
         private const char TanweenFatha = (char)0x064B;
         private const char TanweenDamma = (char)0x064C;
         private const char TanweenKasra = (char)0x064D;
@@ -38,7 +36,6 @@ namespace PicoShot.Localization.Rtl
         private const char Sukun = (char)0x0652;
         private const char Maddah = (char)0x0653;
 
-        // Combined forms (Fatha + Shadda, etc.)
         private const char CombinedFathaShadda = (char)0xFC60;
         private const char CombinedDammaShadda = (char)0xFC61;
         private const char CombinedKasraShadda = (char)0xFC62;
@@ -107,7 +104,6 @@ namespace PicoShot.Localization.Rtl
                         shouldRemove = true;
                         break;
 
-                    // Already combined forms - just remove them
                     case CombinedFathaShadda:
                     case CombinedDammaShadda:
                     case CombinedKasraShadda:
@@ -123,7 +119,6 @@ namespace PicoShot.Localization.Rtl
                     }
                     lastSplitIndex = i + 1;
 
-                    // Only increment index for non-combined tashkeel
                     if (currentChar != CombinedFathaShadda && 
                         currentChar != CombinedDammaShadda && 
                         currentChar != CombinedKasraShadda)
@@ -149,12 +144,10 @@ namespace PicoShot.Localization.Rtl
             if (positions == null || positions.Count == 0)
                 return;
 
-            // Resize array to accommodate tashkeel
             System.Array.Resize(ref letters, letters.Length + positions.Count);
 
             foreach (var position in positions)
             {
-                // Shift characters to make room for tashkeel
                 for (int j = letters.Length - 1; j > position.Position; j--)
                 {
                     letters[j] = letters[j - 1];

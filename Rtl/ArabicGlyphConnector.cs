@@ -16,13 +16,10 @@ namespace PicoShot.Localization.Rtl
     /// </summary>
     internal static class ArabicGlyphConnector
     {
-        // Letters that cannot connect to the next letter (don't have a medial form)
         private static readonly bool[] NonConnectingLetters = new bool[256];
 
         static ArabicGlyphConnector()
         {
-            // Initialize non-connecting letters
-            // These letters don't have medial/ending forms when connecting to next letter
             MarkNonConnecting(IsolatedArabicLetters.Dal);
             MarkNonConnecting(IsolatedArabicLetters.Thal);
             MarkNonConnecting(IsolatedArabicLetters.Ra2);
@@ -79,7 +76,6 @@ namespace PicoShot.Localization.Rtl
             if (index == 0) return false;
             
             char prevChar = word[index - 1];
-            // Previous character must be an Arabic letter that can connect to next
             if (prevChar < 0xFE80 || prevChar > 0xFEFF)
                 return false;
             
@@ -91,11 +87,9 @@ namespace PicoShot.Localization.Rtl
             if (index >= word.Length - 1) return false;
             
             char nextChar = word[index + 1];
-            // Next character must be an Arabic letter
             if (nextChar < 0xFE80 || nextChar > 0xFEFF)
                 return false;
             
-            // Current character must be able to connect to next
             return !IsNonConnecting(word[index]);
         }
 
@@ -104,7 +98,6 @@ namespace PicoShot.Localization.Rtl
         /// </summary>
         public static char GetGlyphForm(char isolatedForm, LetterPosition position)
         {
-            // Special case: Lam + Alef combination is handled separately
             if (isolatedForm == (char)0xFFFF)
                 return isolatedForm;
 
@@ -123,10 +116,8 @@ namespace PicoShot.Localization.Rtl
         /// </summary>
         public static bool IsIgnoredCharacter(char ch)
         {
-            // Check if it's an Arabic Presentation Form B character
             bool isPresentationFormB = ch >= (char)0xFE70 && ch <= (char)0xFEFF;
             
-            // Check for Persian characters
             bool isPersianCharacter = ch is (char)0xFB56 or (char)0xFB7A or (char)0xFB8A or (char)0xFB92 or (char)0xFB8E;
             
             bool isAcceptableCharacter = isPresentationFormB || isPersianCharacter || ch == (char)0xFBFC;
@@ -134,15 +125,12 @@ namespace PicoShot.Localization.Rtl
             if (!isAcceptableCharacter)
                 return true;
 
-            // Punctuation and symbols
             if (char.IsPunctuation(ch) || char.IsSymbol(ch) || char.IsNumber(ch))
                 return true;
 
-            // Latin characters
             if (char.IsLower(ch) || char.IsUpper(ch))
                 return true;
 
-            // Special characters
             return ch == 'a' || ch == '>' || ch == '<' || ch == (char)0x061B;
         }
 
@@ -161,7 +149,7 @@ namespace PicoShot.Localization.Rtl
             {
                 case (char)IsolatedArabicLetters.AlefMaksoor:
                     combinedLam = (char)0xFEF7; // Lam-Alef Maksora
-                    nextOutput = (char)0xFFFF; // Skip next
+                    nextOutput = (char)0xFFFF;
                     return true;
                 case (char)IsolatedArabicLetters.Alef:
                     combinedLam = (char)0xFEF9; // Lam-Alef

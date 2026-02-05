@@ -8,10 +8,10 @@ using System.Text;
 namespace PicoShot.Localization.Data
 {
     /// <summary>
-    /// BLOC (Binary Localization Container) format serializer.
+    /// BLOC (Binary Localization Container) format serializer for single-language files.
     /// Optimized binary format for fast O(1) lookup with string deduplication.
     /// </summary>
-    public static class BlocSerializer
+    public static class LocaleBlocSerializer
     {
         // Header constants
         private static readonly byte[] Magic = { 0x42, 0x4C, 0x4F, 0x43 }; // "BLOC"
@@ -24,9 +24,9 @@ namespace PicoShot.Localization.Data
         private const uint FlagHasArrays = 0x02;
 
         /// <summary>
-        /// Serializes localization data to BLOC format.
+        /// Serializes locale data to BLOC format.
         /// </summary>
-        public static byte[] Serialize(LanguageData data, bool protect = true)
+        public static byte[] Serialize(LocaleData data, bool protect = true)
         {
             if (data?.Translations == null)
                 throw new ArgumentNullException(nameof(data));
@@ -37,23 +37,18 @@ namespace PicoShot.Localization.Data
             var stringPool = BuildStringPool(data.Translations);
             var stringToId = BuildStringToIdMap(stringPool);
 
-            int entryCount = 0;
             int arrayCount = 0;
             foreach (var entry in data.Translations)
             {
-                entryCount += entry.Value.Count;
-                foreach (var langEntry in entry.Value)
+                if (entry.Value is List<string> || entry.Value is string[])
                 {
-                    if (langEntry.Value is List<string> || langEntry.Value is string[])
-                    {
-                        arrayCount++;
-                    }
+                    arrayCount++;
                 }
             }
 
-            // Entry format: KeyID (4) + LangID (4) + Type (1) + ValueRef (4) = 13 bytes
+            // Entry format: KeyID (4) + Type (1) + ValueRef (4) = 9 bytes
             int stringPoolSize = CalculateStringPoolSize(stringPool);
-            int entryTableSize = entryCount * 13;
+            int entryTableSize = data.Translations.Count * 9;
             int arrayTableSize = CalculateArrayTableSize(data.Translations, stringToId);
 
             uint flags = 0;
@@ -63,12 +58,12 @@ namespace PicoShot.Localization.Data
             long stringPoolOffset = HeaderSize;
             long entryTableOffset = stringPoolOffset + stringPoolSize;
             long arrayTableOffset = arrayCount > 0 ? entryTableOffset + entryTableSize : 0;
-            long payloadSize = arrayCount > 0 
-                ? arrayTableOffset + arrayTableSize - HeaderSize 
+            long payloadSize = arrayCount > 0
+                ? arrayTableOffset + arrayTableSize - HeaderSize
                 : entryTableOffset + entryTableSize - HeaderSize;
 
             // Write header (will rewrite with correct hash later if protected)
-            WriteHeader(writer, flags, (uint)entryCount, (uint)arrayCount, (uint)stringPool.Count,
+            WriteHeader(writer, flags, (uint)data.Translations.Count, (uint)arrayCount, (uint)stringPool.Count,
                 (ulong)stringPoolOffset, (ulong)entryTableOffset, (ulong)arrayTableOffset, (ulong)payloadSize);
 
             WriteStringPool(writer, stringPool);
@@ -89,7 +84,7 @@ namespace PicoShot.Localization.Data
                 ms.Position = 0;
                 byte[] fileData = ms.ToArray();
                 hash = ComputeHash(fileData, HeaderSize, (int)(payloadEnd - HeaderSize));
-                
+
                 ms.Position = payloadEnd;
                 writer.Write(hash);
             }
@@ -100,7 +95,7 @@ namespace PicoShot.Localization.Data
         /// <summary>
         /// Deserializes BLOC format data.
         /// </summary>
-        public static LanguageData Deserialize(byte[] data)
+        public static LocaleData Deserialize(byte[] data)
         {
             if (data == null || data.Length < HeaderSize + FooterSize)
                 throw new ArgumentException("Data too short to be valid BLOC file", nameof(data));
@@ -109,10 +104,10 @@ namespace PicoShot.Localization.Data
             using var reader = new BinaryReader(ms, Encoding.UTF8);
 
             var header = ReadHeader(reader);
-            
+
             if (!header.Magic.SequenceEqual(Magic))
                 throw new InvalidDataException("Invalid BLOC magic number");
-            
+
             if (header.Version != Version)
                 throw new InvalidDataException($"Unsupported BLOC version: {header.Version}");
 
@@ -121,7 +116,7 @@ namespace PicoShot.Localization.Data
                 VerifyHash(data, header);
             }
 
-            ms.Position = (long)header.StringPoolOffset + 4; // Skip count, we already know it from header
+            ms.Position = (long)header.StringPoolOffset + 4;
             var stringPool = ReadStringPool(reader, header.StringCount, header.StringPoolOffset);
 
             string[][] arrays = null;
@@ -133,7 +128,7 @@ namespace PicoShot.Localization.Data
             ms.Position = (long)header.EntryTableOffset;
             var translations = ReadEntryTable(reader, header.EntryCount, stringPool, arrays);
 
-            return new LanguageData
+            return new LocaleData
             {
                 Version = (int)header.Version,
                 Translations = translations
@@ -143,7 +138,7 @@ namespace PicoShot.Localization.Data
         /// <summary>
         /// Deserializes BLOC data from a file.
         /// </summary>
-        public static LanguageData DeserializeFromFile(string path)
+        public static LocaleData DeserializeFromFile(string path)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException("BLOC file not found", path);
@@ -153,9 +148,9 @@ namespace PicoShot.Localization.Data
         }
 
         /// <summary>
-        /// Saves language data to a BLOC file.
+        /// Saves locale data to a BLOC file.
         /// </summary>
-        public static void SaveToFile(string path, LanguageData data, bool protect = true)
+        public static void SaveToFile(string path, LocaleData data, bool protect = true)
         {
             string directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -204,42 +199,34 @@ namespace PicoShot.Localization.Data
                 stringPoolOffset, entryTableOffset, arrayTableOffset, payloadSize);
         }
 
-        private static List<string> BuildStringPool(Dictionary<string, Dictionary<string, object>> translations)
+        private static List<string> BuildStringPool(Dictionary<string, object> translations)
         {
             var poolSet = new HashSet<string>();
-            
+
             foreach (var entry in translations)
             {
                 poolSet.Add(entry.Key);
-                
-                foreach (var langCode in entry.Value.Keys)
+
+                if (entry.Value is string str)
                 {
-                    poolSet.Add(langCode);
+                    poolSet.Add(str);
                 }
-                
-                foreach (var langEntry in entry.Value)
+                else if (entry.Value is List<string> list)
                 {
-                    if (langEntry.Value is string str)
+                    foreach (var item in list)
                     {
-                        poolSet.Add(str);
+                        poolSet.Add(item);
                     }
-                    else if (langEntry.Value is List<string> list)
+                }
+                else if (entry.Value is string[] arr)
+                {
+                    foreach (var item in arr)
                     {
-                        foreach (var item in list)
-                        {
-                            poolSet.Add(item);
-                        }
-                    }
-                    else if (langEntry.Value is string[] arr)
-                    {
-                        foreach (var item in arr)
-                        {
-                            poolSet.Add(item);
-                        }
+                        poolSet.Add(item);
                     }
                 }
             }
-            
+
             return poolSet.ToList();
         }
 
@@ -258,22 +245,23 @@ namespace PicoShot.Localization.Data
             int size = 4; // StringCount (uint32)
             size += pool.Count * 2; // Length table (uint16 per string)
             size += pool.Count * 4; // Offset table (uint32 per string)
-            
+
+            // Data size
             foreach (var str in pool)
             {
                 size += Encoding.UTF8.GetByteCount(str);
             }
-            
+
             return size;
         }
 
         private static void WriteStringPool(BinaryWriter writer, List<string> pool)
         {
             writer.Write((uint)pool.Count);
-            
+
             var offsets = new uint[pool.Count];
-            uint currentOffset = (uint)(4 + pool.Count * 2 + pool.Count * 4); // Header + length table + offset table
-            
+            uint currentOffset = (uint)(4 + pool.Count * 2 + pool.Count * 4);
+
             for (int i = 0; i < pool.Count; i++)
             {
                 byte[] bytes = Encoding.UTF8.GetBytes(pool[i]);
@@ -281,12 +269,12 @@ namespace PicoShot.Localization.Data
                 offsets[i] = currentOffset;
                 currentOffset += (uint)bytes.Length;
             }
-            
+
             foreach (var offset in offsets)
             {
                 writer.Write(offset);
             }
-            
+
             foreach (var str in pool)
             {
                 writer.Write(Encoding.UTF8.GetBytes(str));
@@ -298,117 +286,105 @@ namespace PicoShot.Localization.Data
             var strings = new string[count];
             var lengths = new ushort[count];
             var offsets = new uint[count];
-            
+
             for (int i = 0; i < count; i++)
             {
                 lengths[i] = reader.ReadUInt16();
             }
-            
+
             for (int i = 0; i < count; i++)
             {
                 offsets[i] = reader.ReadUInt32();
             }
-            
+
             for (int i = 0; i < count; i++)
             {
                 reader.BaseStream.Position = (long)stringPoolOffset + offsets[i];
                 byte[] bytes = reader.ReadBytes(lengths[i]);
                 strings[i] = Encoding.UTF8.GetString(bytes);
             }
-            
+
             return strings;
         }
 
-        private static int CalculateArrayTableSize(Dictionary<string, Dictionary<string, object>> translations,
+        private static int CalculateArrayTableSize(Dictionary<string, object> translations,
             Dictionary<string, uint> stringToId)
         {
             int size = 0;
-            
+
             foreach (var entry in translations)
             {
-                foreach (var langEntry in entry.Value)
+                List<string> list = null;
+
+                if (entry.Value is List<string> l)
+                    list = l;
+                else if (entry.Value is string[] a)
+                    list = a.ToList();
+
+                if (list != null && list.Count > 0)
                 {
-                    List<string> list = null;
-                    
-                    if (langEntry.Value is List<string> l)
-                        list = l;
-                    else if (langEntry.Value is string[] a)
-                        list = a.ToList();
-                    
-                    if (list != null && list.Count > 0)
-                    {
-                        size += 4; // ArrayID
-                        size += 4; // Length
-                        size += list.Count * 4; // StringIDs
-                    }
+                    size += 4; // ArrayID
+                    size += 4; // Length
+                    size += list.Count * 4; // StringIDs
                 }
             }
-            
+
             return size;
         }
 
         private static Dictionary<string, int> WriteEntryTable(BinaryWriter writer,
-            Dictionary<string, Dictionary<string, object>> translations,
+            Dictionary<string, object> translations,
             Dictionary<string, uint> stringToId)
         {
             var arrayIndexMap = new Dictionary<string, int>();
             int currentArrayIndex = 0;
-            
+
             foreach (var entry in translations)
             {
                 string key = entry.Key;
-                uint keyId = stringToId[key];
-                
-                foreach (var langEntry in entry.Value)
+                object value = entry.Value;
+
+                bool isArray = value is List<string> || value is string[];
+
+                writer.Write(stringToId[key]); // KeyID (4 bytes)
+                writer.Write((byte)(isArray ? 0x01 : 0x00)); // Type (1 byte)
+
+                if (isArray)
                 {
-                    string langCode = langEntry.Key;
-                    object value = langEntry.Value;
-                    
-                    bool isArray = value is List<string> || value is string[];
-                    
-                    writer.Write(keyId); // KeyID (4 bytes)
-                    writer.Write(stringToId[langCode]); // Language code string ID (4 bytes) - we encode lang as part of composite key
-                    writer.Write((byte)(isArray ? 0x01 : 0x00)); // Type (1 byte)
-                    
-                    if (isArray)
-                    {
-                        writer.Write((uint)currentArrayIndex); // Array index (4 bytes)
-                        arrayIndexMap[$"{key}:{langCode}"] = currentArrayIndex;
-                        currentArrayIndex++;
-                    }
-                    else
-                    {
-                        string str = value?.ToString() ?? "";
-                        writer.Write(stringToId[str]); // String pool index (4 bytes)
-                    }
+                    writer.Write((uint)currentArrayIndex); // Array index (4 bytes)
+                    arrayIndexMap[key] = currentArrayIndex;
+                    currentArrayIndex++;
+                }
+                else
+                {
+                    string str = value?.ToString() ?? "";
+                    writer.Write(stringToId[str]); // String pool index (4 bytes)
                 }
             }
-            
+
             return arrayIndexMap;
         }
 
         private static void WriteArrayTable(BinaryWriter writer,
-            Dictionary<string, Dictionary<string, object>> translations,
+            Dictionary<string, object> translations,
             Dictionary<string, uint> stringToId,
             Dictionary<string, int> arrayIndexMap)
         {
             var orderedArrays = arrayIndexMap.OrderBy(kvp => kvp.Value).ToList();
-            
+
             foreach (var kvp in orderedArrays)
             {
-                string[] parts = kvp.Key.Split(':');
-                string key = parts[0];
-                string langCode = parts[1];
-                
-                List<string> list = translations[key][langCode] as List<string>;
-                if (list == null && translations[key][langCode] is string[] arr)
+                string key = kvp.Key;
+
+                List<string> list = translations[key] as List<string>;
+                if (list == null && translations[key] is string[] arr)
                 {
                     list = arr.ToList();
                 }
-                
+
                 writer.Write((uint)kvp.Value); // ArrayID
                 writer.Write((uint)list.Count); // Length
-                
+
                 foreach (var item in list)
                 {
                     writer.Write(stringToId[item]); // StringID
@@ -416,23 +392,21 @@ namespace PicoShot.Localization.Data
             }
         }
 
-        private static Dictionary<string, Dictionary<string, object>> ReadEntryTable(BinaryReader reader,
+        private static Dictionary<string, object> ReadEntryTable(BinaryReader reader,
             uint entryCount, string[] stringPool, string[][] arrays)
         {
-            var groupedEntries = new Dictionary<string, Dictionary<string, object>>();
-            
+            var translations = new Dictionary<string, object>();
+
             for (int i = 0; i < entryCount; i++)
             {
-                // Entry format: KeyID (4) + LangID (4) + Type (1) + ValueRef (4) = 13 bytes
+                // Entry format: KeyID (4) + Type (1) + ValueRef (4) = 9 bytes
                 uint keyId = reader.ReadUInt32();
-                uint langId = reader.ReadUInt32();
                 byte type = reader.ReadByte();
                 uint valueRef = reader.ReadUInt32();
-                
+
                 string key = stringPool[keyId];
-                string langCode = stringPool[langId];
                 object value;
-                
+
                 if (type == 0x01 && arrays != null)
                 {
                     // Array
@@ -443,17 +417,11 @@ namespace PicoShot.Localization.Data
                     // Scalar
                     value = stringPool[valueRef];
                 }
-                
-                if (!groupedEntries.TryGetValue(key, out var langDict))
-                {
-                    langDict = new Dictionary<string, object>();
-                    groupedEntries[key] = langDict;
-                }
-                
-                langDict[langCode] = value;
+
+                translations[key] = value;
             }
-            
-            return groupedEntries;
+
+            return translations;
         }
 
         private static string[][] ReadArrays(BinaryReader reader,
@@ -462,24 +430,24 @@ namespace PicoShot.Localization.Data
             string[] stringPool)
         {
             var arrays = new string[header.ArrayCount][];
-            
+
             reader.BaseStream.Position = (long)header.ArrayTableOffset;
-            
+
             for (int i = 0; i < header.ArrayCount; i++)
             {
                 uint arrayId = reader.ReadUInt32();
                 uint length = reader.ReadUInt32();
-                
+
                 var arr = new string[length];
                 for (int j = 0; j < length; j++)
                 {
                     uint stringId = reader.ReadUInt32();
                     arr[j] = stringPool[stringId];
                 }
-                
+
                 arrays[arrayId] = arr;
             }
-            
+
             return arrays;
         }
 
@@ -490,17 +458,17 @@ namespace PicoShot.Localization.Data
         }
 
         private static void VerifyHash(byte[] data, (byte[] Magic, uint Version, uint Flags, uint EntryCount,
-            uint ArrayCount, uint StringCount, ulong StringPoolOffset, ulong EntryTableOffset, ulong ArrayTableOffset,
-            ulong PayloadSize) header)
+            uint ArrayCount, uint StringCount, ulong StringPoolOffset, ulong EntryTableOffset,
+            ulong ArrayTableOffset, ulong PayloadSize) header)
         {
             int payloadStart = HeaderSize;
             int payloadEnd = data.Length - FooterSize;
             int payloadSize = payloadEnd - payloadStart;
-            
+
             byte[] computedHash = ComputeHash(data, payloadStart, payloadSize);
             byte[] storedHash = new byte[32];
             Array.Copy(data, payloadEnd, storedHash, 0, 32);
-            
+
             if (!computedHash.SequenceEqual(storedHash))
             {
                 throw new InvalidDataException("BLOC file integrity check failed (SHA-256 mismatch)");

@@ -29,7 +29,7 @@ namespace PicoShot.Localization
         private bool _pendingDelete;
         private const float _keyItemHeight = 22f;
         private const string DeeplApiUrl = "https://api-free.deepl.com/v2/translate";
-        private const string DeeplApiKey = "72c86981-8033-4c9e-90fb-16ab84ba0ee3:fx";
+        private const string DeeplApiKey = "";
         private string _keySearchFilter = "";
         private string _newKey = "";
         private string _languageFilter = "";
@@ -83,10 +83,9 @@ namespace PicoShot.Localization
 
         private void OnEnable()
         {
-            // Ensure data structures are initialized (readonly fields already have default values)
             _languageData ??= new Dictionary<string, Dictionary<string, object>>();
             _keys ??= new List<string>();
-            
+
             LoadLanguages();
             CompilationPipeline.compilationStarted += OnBeforeCompile;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
@@ -161,10 +160,10 @@ namespace PicoShot.Localization
         private void HandleKeyboardInput()
         {
             if (Event.current.type != EventType.KeyDown || string.IsNullOrEmpty(_selectedKey)) return;
-            
+
             bool ctrlPressed = (Event.current.modifiers & EventModifiers.Control) != 0;
             var index = _keys.IndexOf(_selectedKey);
-            
+
             switch (Event.current.keyCode)
             {
                 case KeyCode.UpArrow:
@@ -260,7 +259,7 @@ namespace PicoShot.Localization
         private void DrawTabs()
         {
             EditorGUILayout.BeginHorizontal();
-            
+
             GUI.backgroundColor = _currentTab == Tab.Languages ? Color.gray : Color.white;
             if (GUILayout.Button("Languages", EditorStyles.toolbarButton))
                 _currentTab = Tab.Languages;
@@ -320,7 +319,7 @@ namespace PicoShot.Localization
 
                 bool isEnglish = lang.Key == "en";
                 bool isSelected = _languageCodes.Contains(lang.Key);
-                
+
                 if (isEnglish)
                 {
                     EditorGUI.BeginDisabledGroup(true);
@@ -369,7 +368,7 @@ namespace PicoShot.Localization
         private void DrawKeyDetailsPanel()
         {
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
-            
+
             if (!string.IsNullOrEmpty(_selectedKey))
             {
                 EditorGUILayout.LabelField($"Key Details: {_selectedKey}", EditorStyles.boldLabel);
@@ -403,7 +402,7 @@ namespace PicoShot.Localization
         private void DrawKeyActionButtons()
         {
             EditorGUILayout.BeginHorizontal();
-            
+
             if (GUILayout.Button("Rename", GUILayout.Width(80)))
                 RenameKey(_selectedKey);
 
@@ -439,7 +438,6 @@ namespace PicoShot.Localization
                 return;
             }
 
-            // Build simple text representation for AI prompt
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("Please translate the following language key data from English to all other languages.");
             sb.AppendLine("Only fill in the fields that are empty (leave existing translations unchanged).");
@@ -447,12 +445,12 @@ namespace PicoShot.Localization
             sb.AppendLine();
             sb.AppendLine($"Key: {_selectedKey}");
             sb.AppendLine();
-            
+
             foreach (var kvp in keyData)
             {
                 sb.AppendLine($"{kvp.Key}: {kvp.Value}");
             }
-            
+
             EditorGUIUtility.systemCopyBuffer = sb.ToString();
             ShowNotification(new GUIContent("Translation prompt copied to clipboard!"));
         }
@@ -467,7 +465,7 @@ namespace PicoShot.Localization
 
             var filteredKeys = FilterKeys().ToList();
             int totalKeyCount = filteredKeys.Count;
-            
+
 
 
             float viewportHeight = position.height - 300f;
@@ -508,17 +506,15 @@ namespace PicoShot.Localization
             Rect keyRect = new Rect(4, index * _keyItemHeight, width - 8, _keyItemHeight);
 
             GUIStyle keyStyle = GetKeyButtonStyle(key == _selectedKey);
-            
-            // Check if key has any data and determine type
-            string typeIndicator = "Aa"; // Default to string
+
+            string typeIndicator = "Aa";
             if (_languageData.TryGetValue(key, out var keyData) && keyData.Count > 0)
             {
-                // Get first value to determine type
                 var firstValue = keyData.Values.FirstOrDefault();
                 if (firstValue is List<string> || firstValue is string[])
                     typeIndicator = "[ ]";
             }
-            
+
             string buttonLabel = $"<color=#888888>{typeIndicator}</color> {key}";
 
             if (GUI.Button(keyRect, buttonLabel, keyStyle))
@@ -607,7 +603,7 @@ namespace PicoShot.Localization
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("System Language:", GUILayout.Width(120));
             EditorGUILayout.LabelField(LanguageDefinitions.GetDisplayName(LanguageDefinitions.FromSystemLanguage(Application.systemLanguage)));
-            
+
             if (GUILayout.Button("Use System Language", GUILayout.Width(150)))
             {
                 LocalizationManager.SetLanguage(LocalizationManager.DetectSystemLanguage());
@@ -621,7 +617,7 @@ namespace PicoShot.Localization
         private void ShowLanguageDropdown(Rect dropdownRect, string currentLang)
         {
             var menu = new GenericMenu();
-            foreach (var lang in LocalizationManager.GetAvailableLanguages(false))
+            foreach (var lang in LocalizationManager.GetAvailableLanguageCodes())
             {
                 menu.AddItem(
                     new GUIContent(LanguageDefinitions.GetDisplayName(lang)),
@@ -641,7 +637,7 @@ namespace PicoShot.Localization
         {
             _showStatusSection = EditorGUILayout.Foldout(_showStatusSection, "System Status", true);
             if (!_showStatusSection) return;
-            
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             EditorGUILayout.BeginHorizontal();
@@ -674,7 +670,7 @@ namespace PicoShot.Localization
         {
             _showTestingTools = EditorGUILayout.Foldout(_showTestingTools, "Testing Tools", true);
             if (!_showTestingTools) return;
-            
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             DrawTestSection("Simple Text Lookup", () =>
@@ -1031,7 +1027,7 @@ namespace PicoShot.Localization
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("☉", GUILayout.Width(23)))
                 EditorGUIUtility.PingObject(component.gameObject);
-            
+
             string parentName = go.transform.parent?.name ?? "Root";
             EditorGUILayout.LabelField($"{parentName}: {go.name}", EditorStyles.boldLabel);
             var langComponent = go.GetComponent<LocalizationTextComponent>();
@@ -1099,8 +1095,7 @@ namespace PicoShot.Localization
             if (langComponent.TranslationKey == null) return;
             if (!_languageData.TryGetValue(langComponent.TranslationKey, out var keyData)) return;
             if (!IsArrayKey(keyData)) return;
-            
-            // Get the array from the first available language
+
             var firstValue = GetFirstValue(keyData);
             if (firstValue is not List<string> array) return;
 
@@ -1459,8 +1454,9 @@ namespace PicoShot.Localization
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("File Settings", EditorStyles.boldLabel);
-            EditorGUILayout.TextField("File Path:", "{StreamingAssets}" + LocalizationManager.LanguagesFilePath,
+            EditorGUILayout.TextField("Languages Directory:", "{StreamingAssets}/" + LocalizationManager.LanguagesDirectory,
                 EditorStyles.textField);
+            EditorGUILayout.LabelField("File Extension:", ".bloc", EditorStyles.textField);
 
             EditorGUILayout.Space();
 
@@ -1468,16 +1464,16 @@ namespace PicoShot.Localization
             EditorGUILayout.BeginHorizontal();
 
             GUI.backgroundColor = Color.red;
-            if (GUILayout.Button("Delete Language Data", GUILayout.Height(25)))
+            if (GUILayout.Button("Delete All Language Data", GUILayout.Height(25)))
             {
                 PurgeAllData();
             }
 
             GUI.backgroundColor = Color.white;
 
-            if (GUILayout.Button("Open Language File", GUILayout.Height(25)))
+            if (GUILayout.Button("Open Languages Folder", GUILayout.Height(25)))
             {
-                OpenLanguageFile();
+                OpenLanguagesFolder();
             }
 
             GUI.backgroundColor = Color.white;
@@ -1485,7 +1481,8 @@ namespace PicoShot.Localization
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
-            EditorGUILayout.HelpBox("File Path: " + LocalizationManager.FilePath, MessageType.Info);
+            EditorGUILayout.HelpBox($"Languages Path: {LocalizationManager.LanguagesPath}", MessageType.Info);
+            EditorGUILayout.HelpBox($"Directory Exists: {Directory.Exists(LocalizationManager.LanguagesPath)}", MessageType.Info);
 
             EditorGUILayout.EndVertical();
         }
@@ -1521,16 +1518,14 @@ namespace PicoShot.Localization
         private object GetFirstValue(Dictionary<string, object> keyData)
         {
             if (keyData == null || keyData.Count == 0) return null;
-            
-            // Try common language codes in order
-            string[] tryLangs = { "en", "en-US", "en-GB" };
+
+            string[] tryLangs = { "en", "en-US" };
             foreach (var lang in tryLangs)
             {
                 if (keyData.TryGetValue(lang, out var value))
                     return value;
             }
-            
-            // Return first available
+
             return keyData.Values.FirstOrDefault();
         }
 
@@ -1576,10 +1571,9 @@ namespace PicoShot.Localization
 
         private void ClearEmptyArrayElements(string key)
         {
-            // Get array count from first available language
             var firstValue = GetFirstValue(_languageData[key]);
             if (firstValue is not List<string> firstArray) return;
-            
+
             for (var i = firstArray.Count - 1; i >= 0; i--)
             {
                 var isEmpty = true;
@@ -1604,11 +1598,21 @@ namespace PicoShot.Localization
                     "Are you sure you want to delete all language data?\n\n" +
                     "This action cannot be undone!",
                     "Yes, Delete All", "Cancel")) return;
-            
+
             _languageData.Clear();
             _keys.Clear();
             _languageCodes.Clear();
             _languageCodes.Add("en");
+
+            if (Directory.Exists(LocalizationManager.LanguagesPath))
+            {
+                var files = Directory.GetFiles(LocalizationManager.LanguagesPath, "*.bloc");
+                foreach (var file in files)
+                {
+                    File.Delete(file);
+                }
+            }
+
             SaveLanguages();
             Repaint();
         }
@@ -1618,50 +1622,22 @@ namespace PicoShot.Localization
             LocalizationManager.Dispose();
         }
 
-        private static void OpenLanguageFile()
+        private static void OpenLanguagesFolder()
         {
-            if (!File.Exists(LocalizationManager.FilePath))
+            string path = LocalizationManager.LanguagesPath;
+
+            if (!Directory.Exists(path))
             {
-                EditorUtility.DisplayDialog("Error",
-                    "Language file does not exist yet.\nSave some data first to create the file.",
-                    "OK");
-                return;
+                Directory.CreateDirectory(path);
             }
 
             try
             {
-                System.Diagnostics.Process.Start(LocalizationManager.FilePath);
+                System.Diagnostics.Process.Start("explorer.exe", path);
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error opening language file: {e}");
-                TryOpenWithAlternativeEditors();
-            }
-        }
-
-        private static void TryOpenWithAlternativeEditors()
-        {
-            try
-            {
-                switch (Application.platform)
-                {
-                    case RuntimePlatform.WindowsEditor:
-                        System.Diagnostics.Process.Start("notepad.exe", LocalizationManager.FilePath);
-                        break;
-                    case RuntimePlatform.OSXEditor:
-                        System.Diagnostics.Process.Start("open", LocalizationManager.FilePath);
-                        break;
-                    default:
-                        System.Diagnostics.Process.Start("xdg-open", LocalizationManager.FilePath);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                EditorUtility.DisplayDialog("Error",
-                    $"Could not open the language file: {ex.Message}",
-                    "OK");
-                Debug.LogError($"Error opening language file: {ex}");
+                Debug.LogError($"Error opening languages folder: {e}");
             }
         }
 
@@ -1687,7 +1663,7 @@ namespace PicoShot.Localization
         private void AddLanguageToKey(string key, string language)
         {
             var firstValue = GetFirstValue(_languageData[key]);
-            
+
             switch (firstValue)
             {
                 case List<string> arr:
@@ -1712,6 +1688,12 @@ namespace PicoShot.Localization
                 foreach (var key in _keys.Where(key => _languageData[key].ContainsKey(language)))
                 {
                     _languageData[key].Remove(language);
+                }
+
+                string filePath = LocalizationManager.GetLanguageFilePath(language);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
                 }
 
                 Debug.Log($"Language '{language}' deleted.");
@@ -1799,7 +1781,7 @@ namespace PicoShot.Localization
         private void RenameKey(string key)
         {
             if (!_keys.Contains(key)) return;
-            
+
             OpenTextEditor(key, (newKey) =>
             {
                 if (string.IsNullOrEmpty(newKey))
@@ -1897,34 +1879,75 @@ namespace PicoShot.Localization
         {
             try
             {
-                if (File.Exists(LocalizationManager.FilePath))
+                _languageData = new Dictionary<string, Dictionary<string, object>>();
+                _keys = new List<string>();
+                _languageCodes.Clear();
+                _languageCodes.Add("en");
+
+                if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
-                    var loadedData = LocalizationManager.LoadFromFile(LocalizationManager.FilePath);
-                    _languageData = loadedData.Translations;
-                    _keys = new List<string>(_languageData.Keys);
-                    
-                    // Extract available languages from data
-                    _languageCodes.Clear();
-                    _languageCodes.Add("en");
-                    
-                    foreach (var keyData in _languageData.Values)
+                    Debug.Log($"[LocalizationEditor] Languages directory not found. Creating new data.");
+                    return;
+                }
+
+                var blocFiles = Directory.GetFiles(LocalizationManager.LanguagesPath, "*.bloc", SearchOption.TopDirectoryOnly);
+
+                foreach (var file in blocFiles)
+                {
+                    try
                     {
-                        foreach (var lang in keyData.Keys)
+                        var localeData = LocalizationManager.LoadLocaleFromFile(file);
+                        string langCode = Path.GetFileNameWithoutExtension(file);
+
+                        if (!_languageCodes.Contains(langCode))
                         {
-                            if (!_languageCodes.Contains(lang))
-                                _languageCodes.Add(lang);
+                            _languageCodes.Add(langCode);
+                        }
+
+                        foreach (var entry in localeData.Translations)
+                        {
+                            string key = entry.Key;
+                            object value = entry.Value;
+
+                            if (!_keys.Contains(key))
+                            {
+                                _keys.Add(key);
+                                _languageData[key] = new Dictionary<string, object>();
+                            }
+
+                            _languageData[key][langCode] = value;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[LocalizationEditor] Error loading file '{file}': {ex.Message}");
+                    }
+                }
+
+                foreach (var key in _keys)
+                {
+                    foreach (var lang in _languageCodes)
+                    {
+                        if (!_languageData[key].ContainsKey(lang))
+                        {
+                            var firstValue = _languageData[key].Values.FirstOrDefault();
+                            if (firstValue is List<string> list)
+                            {
+                                _languageData[key][lang] = new List<string>(new string[list.Count]);
+                            }
+                            else
+                            {
+                                _languageData[key][lang] = "";
+                            }
                         }
                     }
                 }
-                else
-                {
-                    _languageData = new Dictionary<string, Dictionary<string, object>>();
-                    _keys = new List<string>();
-                }
+
+                Debug.Log($"[LocalizationEditor] Loaded {_keys.Count} keys across {_languageCodes.Count} languages.");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"Error loading language data: {ex.Message}");
+                Debug.LogError($"[LocalizationEditor] Error loading language data: {ex.Message}");
                 _languageData = new Dictionary<string, Dictionary<string, object>>();
                 _keys = new List<string>();
             }
@@ -1934,11 +1957,41 @@ namespace PicoShot.Localization
         {
             try
             {
-                var saveData = new LanguageData { Translations = _languageData };
-                LocalizationManager.SaveToFile(LocalizationManager.FilePath, saveData);
+                if (!Directory.Exists(LocalizationManager.LanguagesPath))
+                {
+                    Directory.CreateDirectory(LocalizationManager.LanguagesPath);
+                }
+
+                foreach (var lang in _languageCodes)
+                {
+                    var localeData = new LocaleData
+                    {
+                        LanguageCode = lang,
+                        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                        Translations = new Dictionary<string, object>()
+                    };
+
+                    foreach (var key in _keys)
+                    {
+                        if (_languageData[key].TryGetValue(lang, out var value))
+                        {
+                            localeData.Translations[key] = value;
+                        }
+                    }
+
+                    string filePath = LocalizationManager.GetLanguageFilePath(lang);
+                    LocalizationManager.SaveLocaleToFile(filePath, localeData);
+                }
+
                 _hasUnsavedChanges = false;
                 ShowNotification(new GUIContent("Language data saved successfully!"));
                 Debug.Log("[LocalizationEditor] Language data saved.");
+
+                if (LocalizationManager.IsInitialized)
+                {
+                    LocalizationManager.Dispose();
+                    LocalizationManager.Initialize();
+                }
             }
             catch (Exception ex)
             {
@@ -1950,7 +2003,7 @@ namespace PicoShot.Localization
         private void PromptAutoSave(string context)
         {
             if (!_hasUnsavedChanges) return;
-            
+
             if (EditorUtility.DisplayDialog("Unsaved Changes",
                     $"You have unsaved changes. Would you like to save them {context}?",
                     "Save", "Don't Save"))
@@ -1971,18 +2024,16 @@ namespace PicoShot.Localization
         private async Task TranslateAndFill(string key)
         {
             if (!_languageData.TryGetValue(key, out var keyData)) return;
-            
-            // Find a source text (prefer English, but use first available string)
+
             string sourceText = null;
             string sourceLang = "en";
-            
+
             if (keyData.TryGetValue("en", out var enValue) && enValue is string enStr)
             {
                 sourceText = enStr;
             }
             else
             {
-                // Find first string value
                 foreach (var kvp in keyData)
                 {
                     if (kvp.Value is string str && !string.IsNullOrWhiteSpace(str))
@@ -1993,7 +2044,7 @@ namespace PicoShot.Localization
                     }
                 }
             }
-            
+
             if (string.IsNullOrWhiteSpace(sourceText)) return;
 
             foreach (var lang in _languageCodes.Where(l => l != sourceLang))
@@ -2019,7 +2070,6 @@ namespace PicoShot.Localization
 
         private async Task<string> TranslateText(string text, string sourceLang, string targetLang)
         {
-            // DeepL language code mapping
             string deeplLang = targetLang switch
             {
                 "zh" => "ZH",
@@ -2040,10 +2090,10 @@ namespace PicoShot.Localization
             {
                 var response = await _httpClient.PostAsync(DeeplApiUrl, content);
                 response.EnsureSuccessStatusCode();
-                
+
                 var responseJson = await response.Content.ReadAsStringAsync();
                 
-                // Simple JSON parsing for DeepL response: {"translations":[{"text":"..."}]}
+
                 string translated = ParseDeepLResponse(responseJson);
                 return translated ?? text;
             }
@@ -2056,19 +2106,17 @@ namespace PicoShot.Localization
 
         private string ParseDeepLResponse(string json)
         {
-            // Simple parser for: {"translations":[{"detected_source_language":"EN","text":"..."}]}
             int textIndex = json.IndexOf("\"text\":");
             if (textIndex < 0) return null;
-            
+
             int quoteStart = json.IndexOf('"', textIndex + 7);
             if (quoteStart < 0) return null;
-            
+
             int quoteEnd = json.IndexOf('"', quoteStart + 1);
             if (quoteEnd < 0) return null;
-            
+
             string escaped = json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
-            
-            // Unescape common JSON escape sequences
+
             return escaped
                 .Replace("\\n", "\n")
                 .Replace("\\r", "\r")

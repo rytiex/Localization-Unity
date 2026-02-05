@@ -29,19 +29,16 @@ namespace PicoShot.Localization.Rtl
             if (string.IsNullOrEmpty(text))
                 return text;
 
-            // Normalize newlines
             if (text.Contains("\n") && !text.Contains(Environment.NewLine))
             {
                 text = text.Replace("\n", Environment.NewLine);
             }
 
-            // Single line - simple fix
             if (!text.Contains(Environment.NewLine))
             {
                 return RtlTextFixer.FixLine(text, options);
             }
 
-            // Multi-line - fix each line separately
             return FixMultiline(text, options);
         }
 
@@ -60,10 +57,8 @@ namespace PicoShot.Localization.Rtl
             MultilineBuilder.Clear();
             MultilineBuilder.EnsureCapacity(text.Length);
 
-            // Fix first line
             MultilineBuilder.Append(RtlTextFixer.FixLine(lines[0], options));
 
-            // Fix remaining lines
             for (int i = 1; i < lines.Length; i++)
             {
                 MultilineBuilder.Append(Environment.NewLine);

@@ -24,10 +24,11 @@ namespace PicoShot.Localization
 
         #region Configuration
 
-        public static readonly string LanguagesFilePath = Path.Combine("languages", "languages.bloc");
-        public static string FilePath => Path.Combine(Application.streamingAssetsPath, LanguagesFilePath);
+        public static readonly string LanguagesDirectory = Path.Combine("languages");
+        public static string LanguagesPath => Path.Combine(Application.streamingAssetsPath, LanguagesDirectory);
 
         private const string DefaultLanguageCode = "en";
+        private const string FileExtension = ".bloc";
 
         #endregion
 
@@ -41,7 +42,6 @@ namespace PicoShot.Localization
 
         private static HashSet<string> _allTranslationKeys;
         private static HashSet<string> _availableLanguages;
-        private static Dictionary<string, HashSet<string>> _languageKeyMap;
 
         #endregion
 
@@ -72,20 +72,21 @@ namespace PicoShot.Localization
 
             try
             {
-                if (!File.Exists(FilePath))
+                ScanAvailableLanguages();
+
+                if (_availableLanguages.Count == 0)
                 {
-                    string error = $"[LocalizationManager] Language file not found: {FilePath}";
+                    string error = $"[LocalizationManager] No language files found in: {LanguagesPath}";
                     Debug.LogError(error);
                     OnLanguageLoadError?.Invoke(error);
                     return;
                 }
 
-                LoadLanguageMetadata();
                 SetLanguage(DetectSystemLanguage(), useFallback: false);
-                
+
                 _isInitialized = true;
                 Application.quitting += Dispose;
-                
+
                 OnLanguageChanged?.Invoke();
             }
             catch (Exception ex)
@@ -96,38 +97,39 @@ namespace PicoShot.Localization
             }
         }
 
-        private static void LoadLanguageMetadata()
+        private static void ScanAvailableLanguages()
         {
+            _availableLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             _allTranslationKeys = new HashSet<string>(StringComparer.Ordinal);
-            _languageKeyMap = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-            try
+            if (!Directory.Exists(LanguagesPath))
             {
-                var data = BlocSerializer.DeserializeFromFile(FilePath);
-                _availableLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                Debug.LogWarning($"[LocalizationManager] Languages directory not found: {LanguagesPath}");
+                return;
+            }
 
-                foreach (var entry in data.Translations)
+            var blocFiles = Directory.GetFiles(LanguagesPath, $"*{FileExtension}", SearchOption.TopDirectoryOnly);
+
+            foreach (var file in blocFiles)
+            {
+                string fileName = Path.GetFileNameWithoutExtension(file);
+                _availableLanguages.Add(fileName);
+            }
+
+            if (_availableLanguages.Contains(DefaultLanguageCode))
+            {
+                try
                 {
-                    string key = entry.Key;
-                    _allTranslationKeys.Add(key);
-
-                    foreach (string langCode in entry.Value.Keys)
+                    var defaultData = LoadLocaleFile(DefaultLanguageCode);
+                    foreach (var key in defaultData.Keys)
                     {
-                        _availableLanguages.Add(langCode);
-                        
-                        if (!_languageKeyMap.TryGetValue(langCode, out var keys))
-                        {
-                            keys = new HashSet<string>(StringComparer.Ordinal);
-                            _languageKeyMap[langCode] = keys;
-                        }
-                        keys.Add(key);
+                        _allTranslationKeys.Add(key);
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[LocalizationManager] Failed to load metadata: {ex.Message}");
-                throw;
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[LocalizationManager] Failed to load default language keys: {ex.Message}");
+                }
             }
         }
 
@@ -186,47 +188,48 @@ namespace PicoShot.Localization
 
         private static void LoadLanguageData(string languageCode)
         {
-            var data = BlocSerializer.DeserializeFromFile(FilePath);
-            
-            _currentLanguageData = ExtractLanguageDictionary(data, languageCode, DefaultLanguageCode);
-            
+            _currentLanguageData = LoadLocaleFile(languageCode);
+
             if (languageCode != DefaultLanguageCode)
             {
-                _fallbackLanguageData = ExtractLanguageDictionary(data, DefaultLanguageCode, null);
+                _fallbackLanguageData = LoadLocaleFile(DefaultLanguageCode);
             }
             else
             {
                 _fallbackLanguageData = _currentLanguageData;
             }
         }
-        
-        private static Dictionary<string, object> ExtractLanguageDictionary(LanguageData data, string languageCode, string fallbackCode)
+
+        private static Dictionary<string, object> LoadLocaleFile(string languageCode)
         {
-            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+            string filePath = GetLocaleFilePath(languageCode);
 
-            if (data?.Translations == null)
-                return result;
-
-            foreach (var entry in data.Translations)
+            if (!File.Exists(filePath))
             {
-                string key = entry.Key;
-                var translations = entry.Value;
+                throw new FileNotFoundException($"Locale file not found for language '{languageCode}'", filePath);
+            }
 
-                // Try to get translation in requested language
-                if (translations.TryGetValue(languageCode, out var value))
-                {
-                    result[key] = NormalizeValue(value);
-                }
-                // Fall back if needed
-                else if (languageCode != fallbackCode && fallbackCode != null && translations.TryGetValue(fallbackCode, out var fallbackValue))
-                {
-                    result[key] = NormalizeValue(fallbackValue);
-                }
+            var localeData = LocaleBlocSerializer.DeserializeFromFile(filePath);
+
+            if (localeData?.Translations == null)
+            {
+                return new Dictionary<string, object>(StringComparer.Ordinal);
+            }
+
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (var entry in localeData.Translations)
+            {
+                result[entry.Key] = NormalizeValue(entry.Value);
             }
 
             return result;
         }
-        
+
+        private static string GetLocaleFilePath(string languageCode)
+        {
+            return Path.Combine(LanguagesPath, $"{languageCode}{FileExtension}");
+        }
+
         private static object NormalizeValue(object value)
         {
             if (value == null)
@@ -323,7 +326,7 @@ namespace PicoShot.Localization
             }
 
             var array = GetArrayInternal(key);
-            
+
             if (array == null)
                 return null;
 
@@ -344,7 +347,7 @@ namespace PicoShot.Localization
         public static string GetArrayText(string key, int index)
         {
             var array = GetArray(key);
-            
+
             if (array == null || array.Length == 0)
             {
                 Debug.LogWarning($"[LocalizationManager] Key '{key}' is not an array or is empty");
@@ -400,13 +403,21 @@ namespace PicoShot.Localization
         /// </summary>
         public static IEnumerable<string> GetAvailableLanguages(bool withNativeNames = false)
         {
-            if (_languageKeyMap == null || _languageKeyMap.Count == 0)
+            if (_availableLanguages == null || _availableLanguages.Count == 0)
             {
                 return Enumerable.Empty<string>();
             }
 
-            return _languageKeyMap.Keys.Select(code => 
+            return _availableLanguages.Select(code =>
                 LanguageDefinitions.GetDisplayName(code, withNativeNames));
+        }
+
+        /// <summary>
+        /// Gets available language codes.
+        /// </summary>
+        public static IEnumerable<string> GetAvailableLanguageCodes()
+        {
+            return _availableLanguages ?? Enumerable.Empty<string>();
         }
 
         /// <summary>
@@ -442,6 +453,14 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
+        /// Checks if a key exists in the default language.
+        /// </summary>
+        public static bool HasKeyInDefault(string key)
+        {
+            return _fallbackLanguageData?.ContainsKey(key) ?? false;
+        }
+
+        /// <summary>
         /// Gets all available translation keys.
         /// </summary>
         public static IEnumerable<string> GetAllKeys()
@@ -454,19 +473,27 @@ namespace PicoShot.Localization
         #region Editor Support
 
         /// <summary>
-        /// Saves language data to file (for editor use).
+        /// Saves locale data to file (for editor use).
         /// </summary>
-        public static void SaveToFile(string path, LanguageData data)
+        public static void SaveLocaleToFile(string path, LocaleData data)
         {
-            BlocSerializer.SaveToFile(path, data);
+            LocaleBlocSerializer.SaveToFile(path, data);
         }
 
         /// <summary>
-        /// Loads language data from file (for editor use).
+        /// Loads locale data from file (for editor use).
         /// </summary>
-        public static LanguageData LoadFromFile(string path)
+        public static LocaleData LoadLocaleFromFile(string path)
         {
-            return BlocSerializer.DeserializeFromFile(path);
+            return LocaleBlocSerializer.DeserializeFromFile(path);
+        }
+
+        /// <summary>
+        /// Gets the file path for a language code (for editor use).
+        /// </summary>
+        public static string GetLanguageFilePath(string languageCode)
+        {
+            return GetLocaleFilePath(languageCode);
         }
 
         #endregion
@@ -491,9 +518,6 @@ namespace PicoShot.Localization
             _allTranslationKeys?.Clear();
             _allTranslationKeys = null;
 
-            _languageKeyMap?.Clear();
-            _languageKeyMap = null;
-
             _availableLanguages?.Clear();
             _availableLanguages = null;
 
@@ -511,8 +535,8 @@ namespace PicoShot.Localization
                    $"  Current Language: {_currentLanguageCode}\n" +
                    $"  Available Languages: {_availableLanguages?.Count ?? 0}\n" +
                    $"  Loaded Keys: {_currentLanguageData?.Count ?? 0}\n" +
-                   $"  File Path: {FilePath}\n" +
-                   $"  File Exists: {File.Exists(FilePath)}";
+                   $"  Languages Path: {LanguagesPath}\n" +
+                   $"  Directory Exists: {Directory.Exists(LanguagesPath)}";
         }
 
         #endregion
