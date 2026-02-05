@@ -62,6 +62,17 @@ namespace PicoShot.Localization
             }
         }
 
+        public int ArraySizeLimit
+        {
+            get => arraySizeLimit;
+            set
+            {
+                if (arraySizeLimit == value) return;
+                arraySizeLimit = value;
+                UpdateText();
+            }
+        }
+
         public string[] FormatParameters
         {
             get => formatParameters;
@@ -333,44 +344,4 @@ namespace PicoShot.Localization
 
         #endregion
     }
-
-    #region Editor
-
-    #if UNITY_EDITOR
-    [UnityEditor.CustomEditor(typeof(LocalizationTextComponent))]
-    public class LocalizationTextComponentEditor : UnityEditor.Editor
-    {
-        public override void OnInspectorGUI()
-        {
-            serializedObject.Update();
-
-            DrawPropertiesExcluding(serializedObject, "m_Script");
-
-            serializedObject.ApplyModifiedProperties();
-
-            EditorGUILayout.Space(10);
-
-            var component = (LocalizationTextComponent)target;
-
-            EditorGUI.BeginDisabledGroup(!Application.isPlaying);
-            
-            if (GUILayout.Button("Force Refresh"))
-            {
-                component.ForceRefresh();
-            }
-
-            EditorGUI.EndDisabledGroup();
-
-            if (Application.isPlaying)
-            {
-                EditorGUILayout.Space(5);
-                EditorGUILayout.LabelField("Current Text", EditorStyles.boldLabel);
-                EditorGUILayout.SelectableLabel(component.GetType().GetField("_lastText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(component)?.ToString() ?? "(empty)", 
-                    EditorStyles.textArea, GUILayout.Height(40));
-            }
-        }
-    }
-    #endif
-
-    #endregion
 }

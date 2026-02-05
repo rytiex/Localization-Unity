@@ -8,8 +8,6 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Text.RegularExpressions;
 using TMPro;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using UnityEditor.Compilation;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Rtl;
@@ -86,18 +84,18 @@ namespace PicoShot.Localization
         private void OnEnable()
         {
             LoadLanguages();
-            CompilationPipeline.assemblyCompilationStarted += OnBeforeCompile;
+            CompilationPipeline.compilationStarted += OnBeforeCompile;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
         private void OnDisable()
         {
             UnregisterEventHandlers();
-            CompilationPipeline.assemblyCompilationStarted -= OnBeforeCompile;
+            CompilationPipeline.compilationStarted -= OnBeforeCompile;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
         }
 
-        private void OnBeforeCompile(string assembly)
+        private void OnBeforeCompile(object _)
         {
             PromptAutoSave("before compiling");
         }
@@ -425,7 +423,6 @@ namespace PicoShot.Localization
                 () => { _ = TranslateAndFill(_selectedKey); });
 
             menu.AddItem(new GUIContent("Copy AI Translate Prompt"), false, CopyAiTranslatePrompt);
-            menu.AddItem(new GUIContent("Import JSON Data from Clipboard"), false, ImportJsonFromClipboard);
 
             menu.ShowAsContext();
         }
@@ -438,145 +435,24 @@ namespace PicoShot.Localization
                 return;
             }
 
-            string jsonData = JsonConvert.SerializeObject(keyData, Formatting.Indented);
-            string prompt = "Please translate the following language key data from English to all other languages.\n" +
-                           "Only fill in the fields that are empty (leave existing translations unchanged).\n" +
-                           "Return only the translated JSON data without any additional text.\n\n" +
-                           jsonData;
-            EditorGUIUtility.systemCopyBuffer = prompt;
+            // Build simple text representation for AI prompt
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Please translate the following language key data from English to all other languages.");
+            sb.AppendLine("Only fill in the fields that are empty (leave existing translations unchanged).");
+            sb.AppendLine("Return data in format: LanguageCode: Translation");
+            sb.AppendLine();
+            sb.AppendLine($"Key: {_selectedKey}");
+            sb.AppendLine();
+            
+            foreach (var kvp in keyData)
+            {
+                sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+            }
+            
+            EditorGUIUtility.systemCopyBuffer = sb.ToString();
             ShowNotification(new GUIContent("Translation prompt copied to clipboard!"));
         }
 
-        private void ImportJsonFromClipboard()
-        {
-            if (string.IsNullOrEmpty(_selectedKey) || !_languageData.ContainsKey(_selectedKey))
-            {
-                ShowNotification(new GUIContent("No key selected."));
-                return;
-            }
-
-            string pastedText = EditorGUIUtility.systemCopyBuffer;
-            try
-            {
-                bool isSelectedKeyArray = _languageData[_selectedKey]["en"] is List<string>;
-                JObject jsonObj = JObject.Parse(pastedText);
-                var newData = ParseImportedJson(jsonObj, isSelectedKeyArray);
-                ApplyImportedData(newData, isSelectedKeyArray);
-            }
-            catch (Exception ex)
-            {
-                EditorUtility.DisplayDialog("Paste Data Error", "Failed to parse pasted data: " + ex.Message, "OK");
-            }
-        }
-
-        private Dictionary<string, object> ParseImportedJson(JObject jsonObj, bool isArrayKey)
-        {
-            var newData = new Dictionary<string, object>();
-            
-            foreach (var prop in jsonObj.Properties())
-            {
-                if (prop.Value is JArray jArray && isArrayKey)
-                {
-                    newData[prop.Name] = jArray.ToObject<List<string>>();
-                }
-                else if (prop.Value.Type == JTokenType.String)
-                {
-                    newData[prop.Name] = prop.Value.ToString();
-                }
-                else if (isArrayKey)
-                {
-                    TryParseAsArray(newData, prop);
-                }
-                else
-                {
-                    newData[prop.Name] = prop.Value.ToString();
-                }
-            }
-
-            return newData;
-        }
-
-        private void TryParseAsArray(Dictionary<string, object> newData, JProperty prop)
-        {
-            try
-            {
-                if (prop.Value.ToString().StartsWith("[") && prop.Value.ToString().EndsWith("]"))
-                {
-                    var arrayValues = JArray.Parse(prop.Value.ToString());
-                    newData[prop.Name] = arrayValues.ToObject<List<string>>();
-                }
-                else
-                {
-                    newData[prop.Name] = prop.Value.ToString();
-                }
-            }
-            catch
-            {
-                newData[prop.Name] = new List<string>();
-            }
-        }
-
-        private void ApplyImportedData(Dictionary<string, object> newData, bool isArrayKey)
-        {
-            int userChoice = EditorUtility.DisplayDialogComplex(
-                "Import Data",
-                "Do you want to merge the new data with the existing one, or replace it completely?",
-                "Merge",
-                "Cancel",
-                "Replace"
-            );
-
-            switch (userChoice)
-            {
-                case 0: // Merge
-                    MergeImportedData(_selectedKey, newData, isArrayKey);
-                    ShowNotification(new GUIContent("Data merged successfully."));
-                    break;
-
-                case 2: // Replace
-                    ReplaceKeyData(_selectedKey, newData, isArrayKey);
-                    ShowNotification(new GUIContent("Existing data replaced with new data."));
-                    break;
-            }
-
-            _hasUnsavedChanges = true;
-            Repaint();
-        }
-
-        private void ReplaceKeyData(string key, Dictionary<string, object> newData, bool isArrayKey)
-        {
-            if (isArrayKey)
-            {
-                foreach (var lang in newData.Keys.ToList())
-                {
-                    if (!(newData[lang] is List<string>))
-                    {
-                        if (newData[lang] is string strValue)
-                            newData[lang] = new List<string> { strValue };
-                        else
-                            newData[lang] = new List<string>();
-                    }
-                }
-            }
-            else
-            {
-                foreach (var lang in newData.Keys.ToList())
-                {
-                    if (newData[lang] is List<string> listValue && listValue.Count > 0)
-                        newData[lang] = string.Join(", ", listValue);
-                    else
-                        newData[lang] = newData[lang]?.ToString() ?? "";
-                }
-            }
-
-            var originalKeys = new HashSet<string>(_languageData[key].Keys);
-            foreach (var lang in originalKeys.Where(lang => !newData.ContainsKey(lang)))
-            {
-                newData[lang] = isArrayKey ? new List<string>() : "";
-            }
-
-            _languageData[key] = newData;
-        }
 
         private void DrawKeysListPanel()
         {
@@ -1211,8 +1087,8 @@ namespace PicoShot.Localization
             var newArrayIndex = EditorGUILayout.IntSlider(langComponent.ArrayIndex, -1, array.Count - 1);
 
             EditorGUILayout.LabelField("Array Size Limit:", GUILayout.Width(100));
-            var newArraySizeLimit = EditorGUILayout.IntSlider(langComponent.arraySizeLimit, 0, array.Count);
-            langComponent.arraySizeLimit = newArraySizeLimit;
+            var newArraySizeLimit = EditorGUILayout.IntSlider(langComponent.ArraySizeLimit, 0, array.Count);
+            langComponent.ArraySizeLimit = newArraySizeLimit;
 
             if (newArrayIndex != langComponent.ArrayIndex)
             {
@@ -1563,23 +1439,6 @@ namespace PicoShot.Localization
             EditorGUILayout.LabelField("File Settings", EditorStyles.boldLabel);
             EditorGUILayout.TextField("File Path:", "{StreamingAssets}" + LocalizationManager.LanguagesFilePath,
                 EditorStyles.textField);
-
-            EditorGUILayout.Space();
-
-            EditorGUILayout.LabelField("Import/Export As Json", EditorStyles.boldLabel);
-            EditorGUILayout.BeginHorizontal();
-
-            if (GUILayout.Button("Export JSON", GUILayout.Height(25)))
-            {
-                ExportLanguages();
-            }
-
-            if (GUILayout.Button("Import JSON", GUILayout.Height(25)))
-            {
-                ImportLanguages();
-            }
-
-            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
 
@@ -2032,50 +1891,6 @@ namespace PicoShot.Localization
             }
         }
 
-        private void ExportLanguages()
-        {
-            string path = EditorUtility.SaveFilePanel("Export Language Data", "", "languages", "json");
-            if (string.IsNullOrEmpty(path)) return;
-
-            try
-            {
-                string json = JsonConvert.SerializeObject(_languageData, Formatting.Indented);
-                File.WriteAllText(path, json);
-                ShowNotification(new GUIContent("Language data exported successfully!"));
-            }
-            catch (Exception ex)
-            {
-                EditorUtility.DisplayDialog("Error", $"Failed to export language data: {ex.Message}", "OK");
-            }
-        }
-
-        private void ImportLanguages()
-        {
-            string path = EditorUtility.OpenFilePanel("Import Language Data", "", "json");
-            if (string.IsNullOrEmpty(path)) return;
-
-            try
-            {
-                string json = File.ReadAllText(path);
-                var importedData = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, object>>>(json);
-                
-                if (EditorUtility.DisplayDialog("Confirm Import",
-                        "This will replace all existing language data. Are you sure?",
-                        "Yes", "Cancel"))
-                {
-                    _languageData = importedData;
-                    _keys = new List<string>(_languageData.Keys);
-                    _hasUnsavedChanges = true;
-                    Repaint();
-                    ShowNotification(new GUIContent("Language data imported successfully!"));
-                }
-            }
-            catch (Exception ex)
-            {
-                EditorUtility.DisplayDialog("Error", $"Failed to import language data: {ex.Message}", "OK");
-            }
-        }
-
         private void PromptAutoSave(string context)
         {
             if (!_hasUnsavedChanges) return;
@@ -2148,9 +1963,10 @@ namespace PicoShot.Localization
                 response.EnsureSuccessStatusCode();
                 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = JsonConvert.DeserializeObject<DeepLResponse>(responseJson);
                 
-                return result?.translations?.FirstOrDefault()?.text ?? text;
+                // Simple JSON parsing for DeepL response: {"translations":[{"text":"..."}]}
+                string translated = ParseDeepLResponse(responseJson);
+                return translated ?? text;
             }
             catch (Exception ex)
             {
@@ -2159,14 +1975,27 @@ namespace PicoShot.Localization
             }
         }
 
-        private class DeepLResponse
+        private string ParseDeepLResponse(string json)
         {
-            public List<DeepLTranslation> translations { get; set; }
-        }
-
-        private class DeepLTranslation
-        {
-            public string text { get; set; }
+            // Simple parser for: {"translations":[{"detected_source_language":"EN","text":"..."}]}
+            int textIndex = json.IndexOf("\"text\":");
+            if (textIndex < 0) return null;
+            
+            int quoteStart = json.IndexOf('"', textIndex + 7);
+            if (quoteStart < 0) return null;
+            
+            int quoteEnd = json.IndexOf('"', quoteStart + 1);
+            if (quoteEnd < 0) return null;
+            
+            string escaped = json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+            
+            // Unescape common JSON escape sequences
+            return escaped
+                .Replace("\\n", "\n")
+                .Replace("\\r", "\r")
+                .Replace("\\t", "\t")
+                .Replace("\\\"", "\"")
+                .Replace("\\\\", "\\");
         }
 
         #endregion

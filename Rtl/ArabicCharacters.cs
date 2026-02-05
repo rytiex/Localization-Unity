@@ -104,7 +104,6 @@ namespace PicoShot.Localization.Rtl
     internal static class ArabicLetterConverter
     {
         private static readonly int[] GeneralToIsolated = new int[256];
-        private static readonly bool _isInitialized;
 
         static ArabicLetterConverter()
         {
@@ -158,7 +157,7 @@ namespace PicoShot.Localization.Rtl
             AddMapping(GeneralArabicLetters.PersianGaf2, IsolatedArabicLetters.PersianGaf2);
             AddMapping(GeneralArabicLetters.PersianYeh, IsolatedArabicLetters.PersianYeh);
 
-            _isInitialized = true;
+
         }
 
         private static void AddMapping(GeneralArabicLetters general, IsolatedArabicLetters isolated)
