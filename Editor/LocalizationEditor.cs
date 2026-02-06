@@ -668,13 +668,6 @@ namespace PicoShot.Localization
 
             EditorGUILayout.EndHorizontal();
 
-            EditorGUILayout.Space(5);
-            if (GUILayout.Button("Copy Debug Info to Clipboard"))
-            {
-                EditorGUIUtility.systemCopyBuffer = LocalizationManager.GetDebugInfo();
-                ShowNotification(new GUIContent("Debug info copied to clipboard!"));
-            }
-
             EditorGUILayout.EndVertical();
         }
 
@@ -2195,20 +2188,15 @@ namespace PicoShot.Localization
 
         private async Task<string> TranslateText(string text, string sourceLang, string targetLang)
         {
-            string deeplLang = targetLang switch
-            {
-                "zh" => "ZH",
-                "zh-Hant" => "ZH",
-                "pt" => "PT-PT",
-                _ => targetLang.ToUpper()
-            };
+            string deeplSourceLang = LanguageDefinitions.ToDeepLCode(sourceLang);
+            string deeplTargetLang = LanguageDefinitions.ToDeepLCode(targetLang);
 
             var content = new FormUrlEncodedContent(new[]
             {
                 new KeyValuePair<string, string>("auth_key", DeeplApiKey),
                 new KeyValuePair<string, string>("text", text),
-                new KeyValuePair<string, string>("source_lang", sourceLang.ToUpper()),
-                new KeyValuePair<string, string>("target_lang", deeplLang)
+                new KeyValuePair<string, string>("source_lang", deeplSourceLang),
+                new KeyValuePair<string, string>("target_lang", deeplTargetLang)
             });
 
             try

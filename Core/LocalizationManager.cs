@@ -576,20 +576,6 @@ namespace PicoShot.Localization
             _currentLanguageCode = DefaultLanguage;
         }
 
-        /// <summary>
-        /// Gets debug information about the localization system.
-        /// </summary>
-        public static string GetDebugInfo()
-        {
-            return $"[LocalizationManager]\n" +
-                   $"  Initialized: {_isInitialized}\n" +
-                   $"  Current Language: {_currentLanguageCode}\n" +
-                   $"  Available Languages: {_availableLanguages?.Count ?? 0}\n" +
-                   $"  Loaded Keys: {_currentLanguageData?.Count ?? 0}\n" +
-                   $"  Languages Path: {LanguagesPath}\n" +
-                   $"  Directory Exists: {Directory.Exists(LanguagesPath)}";
-        }
-
         #endregion
     }
 }
