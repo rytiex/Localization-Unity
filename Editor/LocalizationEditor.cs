@@ -2939,17 +2939,16 @@ namespace PicoShot.Localization
             string keyHint = _selectedKey == key ? _currentKeyHint : "";
             var targetLanguages = _languageCodes.Where(l => l != sourceLang).ToList();
 
-            var translations = new Dictionary<string, List<string>>();
             foreach (var lang in targetLanguages)
             {
                 var existingArray = ConvertToList(keyData[lang]);
                 if (existingArray != null && existingArray.Count > 0 && existingArray.Any(s => !string.IsNullOrWhiteSpace(s)))
+                    continue;
+
+                if (existingArray == null)
                 {
-                    translations[lang] = existingArray;
-                }
-                else
-                {
-                    translations[lang] = new List<string>(new string[sourceArray.Count]);
+                    existingArray = new List<string>(new string[sourceArray.Count]);
+                    keyData[lang] = existingArray;
                 }
             }
 
@@ -2961,36 +2960,42 @@ namespace PicoShot.Localization
                 {
                     foreach (var lang in targetLanguages)
                     {
-                        translations[lang][i] = sourceText;
+                        var targetArray = ConvertToList(keyData[lang]);
+                        if (targetArray != null && targetArray.Count > i)
+                        {
+                            targetArray[i] = sourceText;
+                            _hasUnsavedChanges = true;
+                        }
                     }
+                    Repaint();
                     continue;
                 }
 
                 foreach (var lang in targetLanguages)
                 {
-                    if (!string.IsNullOrWhiteSpace(translations[lang][i]))
+                    var targetArray = ConvertToList(keyData[lang]);
+                    if (targetArray == null || targetArray.Count <= i)
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(targetArray[i]))
                         continue;
 
                     try
                     {
                         var translated = await TranslateText(sourceText, sourceLang, lang, keyHint);
-                        translations[lang][i] = !string.IsNullOrEmpty(translated) ? translated : sourceText;
+                        targetArray[i] = !string.IsNullOrEmpty(translated) ? translated : sourceText;
+                        _hasUnsavedChanges = true;
+                        Repaint();
                         await Task.Delay(DeeplRequestDelayMs);
                     }
                     catch (Exception ex)
                     {
                         Debug.LogError($"Translation error for {lang}, element {i}: {ex.Message}");
-                        translations[lang][i] = sourceText;
+                        targetArray[i] = sourceText;
+                        _hasUnsavedChanges = true;
+                        Repaint();
                     }
                 }
-
-                _hasUnsavedChanges = true;
-                Repaint();
-            }
-
-            foreach (var lang in targetLanguages)
-            {
-                keyData[lang] = translations[lang];
             }
         }
 
