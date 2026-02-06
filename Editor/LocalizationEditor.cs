@@ -1211,29 +1211,38 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
-        /// Finds best matching keys using fuzzy string comparison.
+        /// Finds best matching keys using advanced fuzzy string comparison.
+        /// Matches against both key names and translation values.
         /// </summary>
         private List<(string key, float score)> FindBestMatchingKeys(string text, int maxResults)
         {
             var results = new List<(string key, float score)>();
-            string normalizedText = NormalizeForComparison(text);
+            if (string.IsNullOrWhiteSpace(text)) return results;
+
+            string normalizedText = text.ToLowerInvariant().Trim();
+            var queryTokens = Tokenize(text);
 
             foreach (var key in _keys)
             {
-                if (!_languageData.TryGetValue(key, out var keyData)) continue;
-
                 float bestScore = 0;
-                foreach (var langValue in keyData.Values)
-                {
-                    string valueStr = langValue?.ToString() ?? "";
-                    if (string.IsNullOrWhiteSpace(valueStr)) continue;
+                string normalizedKey = key.ToLowerInvariant();
 
-                    string normalizedValue = NormalizeForComparison(valueStr);
-                    float score = CalculateSimilarity(normalizedText, normalizedValue);
-                    if (score > bestScore) bestScore = score;
+                float keyNameScore = CalculateFuzzyScore(normalizedText, normalizedKey, queryTokens, true);
+                bestScore = Math.Max(bestScore, keyNameScore);
+
+                if (_languageData.TryGetValue(key, out var keyData))
+                {
+                    foreach (var langValue in keyData.Values)
+                    {
+                        string valueStr = langValue?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(valueStr)) continue;
+
+                        float valueScore = CalculateFuzzyScore(normalizedText, valueStr.ToLowerInvariant(), queryTokens, false);
+                        bestScore = Math.Max(bestScore, valueScore * 0.9f);
+                    }
                 }
 
-                if (bestScore > 0.3f)
+                if (bestScore > 0.2f)
                 {
                     results.Add((key, bestScore * 100));
                 }
@@ -1243,34 +1252,275 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
-        /// Normalizes text for comparison (lowercase, remove extra spaces).
+        /// Calculates a comprehensive fuzzy matching score (0-1 scale).
+        /// Combines multiple algorithms for robust matching.
         /// </summary>
-        private string NormalizeForComparison(string text)
+        private float CalculateFuzzyScore(string query, string target, string[] queryTokens, bool isKeyName = false)
         {
-            if (string.IsNullOrWhiteSpace(text)) return "";
-            return string.Join(" ", text.ToLowerInvariant()
-                .Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+            if (string.IsNullOrEmpty(query) || string.IsNullOrEmpty(target)) return 0;
+
+            string normalizedQuery = query.ToLowerInvariant().Trim();
+            string normalizedTarget = target.ToLowerInvariant().Trim();
+
+            if (normalizedQuery == normalizedTarget) return 1f;
+
+            var targetTokens = Tokenize(target);
+
+            float tokenSetScore = CalculateTokenSetRatio(queryTokens, targetTokens);
+            float partialScore = CalculatePartialRatio(normalizedQuery, normalizedTarget);
+            float ngramScore = CalculateNgramSimilarity(normalizedQuery, normalizedTarget, 2);
+            float prefixBonus = CalculatePrefixBonus(normalizedQuery, normalizedTarget);
+            float acronymScore = CalculateAcronymMatch(queryTokens, targetTokens);
+
+            if (isKeyName)
+            {
+                float keyNameScore = CalculateKeyNameMatchScore(normalizedQuery, normalizedTarget);
+
+                float weightedScore = keyNameScore * 0.50f +
+                                      tokenSetScore * 0.20f +
+                                      partialScore * 0.15f +
+                                      prefixBonus * 0.10f +
+                                      ngramScore * 0.05f;
+
+                return Math.Min(1f, weightedScore);
+            }
+
+            float valueScore = tokenSetScore * 0.35f +
+                               partialScore * 0.30f +
+                               ngramScore * 0.20f +
+                               prefixBonus * 0.10f +
+                               acronymScore * 0.05f;
+
+            return Math.Min(1f, valueScore);
         }
 
         /// <summary>
-        /// Calculates similarity between two strings (0-1 scale).
-        /// Uses Levenshtein distance combined with substring matching.
+        /// Specialized scoring for key name matching.
+        /// Prioritizes exact, prefix, and substring matches.
         /// </summary>
-        private float CalculateSimilarity(string a, string b)
+        private float CalculateKeyNameMatchScore(string query, string keyName)
         {
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0;
-            if (a == b) return 1;
+            if (query == keyName) return 1f;
 
-            int maxLen = Math.Max(a.Length, b.Length);
-            if (maxLen == 0) return 1;
+            if (keyName.StartsWith(query)) return 0.95f;
+
+            if (keyName.Contains(query)) return 0.85f;
+
+            var queryParts = query.Split(new[] { '_', '.', ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+            var keyParts = keyName.Split(new[] { '_', '.', ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+
+            int matchingParts = 0;
+            foreach (var qPart in queryParts)
+            {
+                foreach (var kPart in keyParts)
+                {
+                    if (kPart == qPart || kPart.StartsWith(qPart))
+                    {
+                        matchingParts++;
+                        break;
+                    }
+                }
+            }
+
+            if (matchingParts == queryParts.Length)
+            {
+                return 0.75f + (0.15f * (matchingParts / (float)keyParts.Length));
+            }
+
+            if (matchingParts > 0)
+            {
+                return 0.50f + (0.20f * (matchingParts / (float)queryParts.Length));
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Tokenizes text into words, handling camelCase and snake_case.
+        /// </summary>
+        private string[] Tokenize(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
+
+            string normalized = text.ToLowerInvariant();
+
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, "([a-z])([A-Z])", "$1 $2");
+            normalized = normalized.Replace('_', ' ').Replace('-', ' ');
+
+            return normalized.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        /// <summary>
+        /// Calculates token set ratio - matches words regardless of order.
+        /// Based on FuzzyWuzzy's token_set_ratio algorithm.
+        /// </summary>
+        private float CalculateTokenSetRatio(string[] queryTokens, string[] targetTokens)
+        {
+            if (queryTokens.Length == 0 || targetTokens.Length == 0) return 0;
+
+            var querySet = new HashSet<string>(queryTokens);
+            var targetSet = new HashSet<string>(targetTokens);
+
+            var intersection = querySet.Intersect(targetSet).ToList();
+            var queryDiff = querySet.Except(targetSet).ToList();
+            var targetDiff = targetSet.Except(querySet).ToList();
+
+            string intersectionStr = string.Join(" ", intersection);
+            string queryCombined = intersectionStr + " " + string.Join(" ", queryDiff);
+            string targetCombined = intersectionStr + " " + string.Join(" ", targetDiff);
+
+            float score1 = CalculateLevenshteinRatio(queryCombined.Trim(), targetCombined.Trim());
+
+            string querySorted = string.Join(" ", queryTokens.OrderBy(t => t));
+            string targetSorted = string.Join(" ", targetTokens.OrderBy(t => t));
+            float score2 = CalculateLevenshteinRatio(querySorted, targetSorted);
+
+            return Math.Max(score1, score2);
+        }
+
+        /// <summary>
+        /// Calculates partial ratio - best matching substring.
+        /// Finds the best alignment of shorter string within longer string.
+        /// </summary>
+        private float CalculatePartialRatio(string shorter, string longer)
+        {
+            if (shorter.Length > longer.Length)
+            {
+                (shorter, longer) = (longer, shorter);
+            }
+
+            if (longer.Contains(shorter)) return 1f;
+
+            int sLen = shorter.Length;
+            int lLen = longer.Length;
+
+            if (sLen == 0 || lLen == 0) return 0;
+
+            float bestScore = 0;
+
+            for (int i = 0; i <= lLen - sLen; i++)
+            {
+                string substring = longer.Substring(i, sLen);
+                float score = CalculateLevenshteinRatio(shorter, substring);
+                bestScore = Math.Max(bestScore, score);
+            }
+
+            for (int windowSize = sLen - 1; windowSize >= Math.Max(1, sLen / 2); windowSize--)
+            {
+                for (int i = 0; i <= lLen - windowSize; i++)
+                {
+                    string substring = longer.Substring(i, windowSize);
+                    float score = CalculateLevenshteinRatio(shorter, substring) * ((float)windowSize / sLen);
+                    bestScore = Math.Max(bestScore, score);
+                }
+            }
+
+            return bestScore;
+        }
+
+        /// <summary>
+        /// Calculates n-gram similarity for typo tolerance.
+        /// </summary>
+        private float CalculateNgramSimilarity(string a, string b, int n)
+        {
+            if (a.Length < n || b.Length < n) return CalculateLevenshteinRatio(a, b);
+
+            var aNgrams = GetNgrams(a, n);
+            var bNgrams = GetNgrams(b, n);
+
+            if (aNgrams.Count == 0 || bNgrams.Count == 0) return 0;
+
+            int matches = aNgrams.Intersect(bNgrams).Count();
+            return (2f * matches) / (aNgrams.Count + bNgrams.Count);
+        }
+
+        /// <summary>
+        /// Extracts n-grams from a string.
+        /// </summary>
+        private HashSet<string> GetNgrams(string text, int n)
+        {
+            var ngrams = new HashSet<string>();
+            for (int i = 0; i <= text.Length - n; i++)
+            {
+                ngrams.Add(text.Substring(i, n));
+            }
+            return ngrams;
+        }
+
+        /// <summary>
+        /// Gives bonus for prefix/suffix matches for better UX.
+        /// </summary>
+        private float CalculatePrefixBonus(string query, string target)
+        {
+            float bonus = 0;
+
+            if (target.StartsWith(query))
+            {
+                bonus += 0.5f + (0.5f * query.Length / target.Length);
+            }
+            else if (target.Contains(" " + query) || target.Contains("_" + query))
+            {
+                bonus += 0.3f;
+            }
+
+            var queryWords = query.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+            var targetWords = target.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+
+            int matchingStartWords = 0;
+            for (int i = 0; i < Math.Min(queryWords.Length, targetWords.Length); i++)
+            {
+                if (targetWords[i].StartsWith(queryWords[i]) || queryWords[i].StartsWith(targetWords[i]))
+                {
+                    matchingStartWords++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (matchingStartWords > 0)
+            {
+                bonus += 0.2f * (matchingStartWords / (float)queryWords.Length);
+            }
+
+            return Math.Min(1f, bonus);
+        }
+
+        /// <summary>
+        /// Calculates acronym match score (e.g., "hp" matches "health points").
+        /// </summary>
+        private float CalculateAcronymMatch(string[] queryTokens, string[] targetTokens)
+        {
+            if (queryTokens.Length == 0 || targetTokens.Length == 0) return 0;
+            if (queryTokens.Length > targetTokens.Length) return 0;
+
+            string acronym = string.Concat(queryTokens.Select(t => t[0]));
+            string targetAcronym = string.Concat(targetTokens.Take(queryTokens.Length).Select(t => t[0]));
+
+            if (acronym == targetAcronym) return 1f;
+
+            if (queryTokens.Length == 1 && queryTokens[0].Length <= 3)
+            {
+                int matches = targetTokens.Count(t => t.StartsWith(queryTokens[0]));
+                return matches > 0 ? 0.8f * (matches / (float)targetTokens.Length) : 0;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Calculates normalized Levenshtein ratio (0-1 scale).
+        /// </summary>
+        private float CalculateLevenshteinRatio(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b)) return 1f;
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0f;
 
             int distance = LevenshteinDistance(a, b);
-            float levenshteinScore = 1f - (float)distance / maxLen;
+            int maxLen = Math.Max(a.Length, b.Length);
 
-            bool containsA = a.Contains(b) || b.Contains(a);
-            float containmentBonus = containsA ? 0.2f : 0;
-
-            return Math.Min(1f, levenshteinScore + containmentBonus);
+            return 1f - (float)distance / maxLen;
         }
 
         /// <summary>
@@ -1291,9 +1541,10 @@ namespace PicoShot.Localization
                 for (int j = 1; j <= b.Length; j++)
                 {
                     int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
-                    matrix[i, j] = Math.Min(
-                        Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
-                        matrix[i - 1, j - 1] + cost);
+                    int deletion = matrix[i - 1, j] + 1;
+                    int insertion = matrix[i, j - 1] + 1;
+                    int substitution = matrix[i - 1, j - 1] + cost;
+                    matrix[i, j] = Math.Min(Math.Min(deletion, insertion), substitution);
                 }
             }
 
