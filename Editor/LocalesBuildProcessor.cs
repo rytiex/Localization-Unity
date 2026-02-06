@@ -35,7 +35,6 @@ namespace PicoShot.Localization.Editor
             }
         }
 
-        [MenuItem("Tools/Localization/Copy Locales to StreamingAssets")]
         private static void CopyLocalesToStreamingAssets()
         {
             string sourcePath = LocalizationManager.LanguagesPath;
