@@ -1,0 +1,19 @@
+{
+    "name": "PicoShot.Localization.Editor",
+    "rootNamespace": "PicoShot.Localization.Editor",
+    "references": [
+        "PicoShot.Localization",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

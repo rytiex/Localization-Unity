@@ -27,11 +27,21 @@ namespace PicoShot.Localization
         public static readonly string LanguagesDirectory = "Locales";
 
         /// <summary>
-        /// Gets the path to the locales directory (root of game in builds, project root in Editor).
+        /// Gets the path to the locales directory.
         /// </summary>
-        public static string LanguagesPath => Path.Combine(
-            Path.GetDirectoryName(Application.dataPath),
-            LanguagesDirectory);
+        public static string LanguagesPath
+        {
+            get
+            {
+#if UNITY_STANDALONE || UNITY_EDITOR
+                return Path.Combine(
+                    Path.GetDirectoryName(Application.dataPath),
+                    LanguagesDirectory);
+#else
+                return Path.Combine(Application.streamingAssetsPath, LanguagesDirectory);
+#endif
+            }
+        }
 
         private const string DefaultLanguageCode = "en";
         private const string FileExtension = ".bloc";
@@ -481,6 +491,7 @@ namespace PicoShot.Localization
 
         #region Editor Support
 
+#if UNITY_EDITOR
         /// <summary>
         /// Saves locale data to file (for editor use).
         /// </summary>
@@ -504,8 +515,9 @@ namespace PicoShot.Localization
         {
             return GetLocaleFilePath(languageCode);
         }
+#endif
 
-        #endregion
+#endregion
 
         #region Cleanup
 
