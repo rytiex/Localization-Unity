@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using TMPro;
 using UnityEditor.Compilation;
+using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Rtl;
 
@@ -1446,7 +1447,73 @@ namespace PicoShot.Localization
         {
             EditorGUILayout.LabelField("Configuration", EditorStyles.boldLabel);
 
+            var config = LocalizationConfigProvider.Config;
+
             EditorGUILayout.BeginVertical("box");
+
+            EditorGUILayout.LabelField("Default Language", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Default:", GUILayout.Width(80));
+
+            var currentDefault = config.DefaultLanguage;
+            var content = new GUIContent(LanguageDefinitions.GetDisplayName(currentDefault));
+            var dropdownRect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true));
+
+            if (EditorGUI.DropdownButton(dropdownRect, content, FocusType.Keyboard))
+            {
+                ShowDefaultLanguageDropdown(dropdownRect, config, currentDefault);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space();
+
+            EditorGUILayout.LabelField("Protection Settings", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Enable Protection:", GUILayout.Width(120));
+            bool newProtection = EditorGUILayout.Toggle(config.ProtectionEnabled);
+            if (newProtection != config.ProtectionEnabled)
+            {
+                config.SetProtectionEnabled(newProtection);
+                LocalizationConfigProvider.SaveConfig();
+                GUI.changed = true;
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.HelpBox(
+                "When protection is enabled, only selected languages will be loaded. " +
+                "This prevents users from injecting unauthorized language files.",
+                MessageType.Info);
+
+            if (config.ProtectionEnabled)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Allowed Languages:", EditorStyles.boldLabel);
+
+                EditorGUI.indentLevel++;
+                foreach (var lang in _languageCodes)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    bool wasSelected = config.SelectedLanguages.Contains(lang);
+                    bool isSelected = EditorGUILayout.Toggle(
+                        LanguageDefinitions.GetDisplayName(lang),
+                        wasSelected);
+
+                    if (isSelected != wasSelected)
+                    {
+                        if (isSelected)
+                            config.AddSelectedLanguage(lang);
+                        else
+                            config.RemoveSelectedLanguage(lang);
+                        LocalizationConfigProvider.SaveConfig();
+                        GUI.changed = true;
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("DeepL API Settings", EditorStyles.boldLabel);
             EditorGUILayout.TextField("API Key:", DeeplApiKey, EditorStyles.textField);
@@ -1469,14 +1536,34 @@ namespace PicoShot.Localization
                 OpenLanguagesFolder();
             }
 
-            GUI.backgroundColor = Color.white;
-
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox($"Languages Path: {LocalizationManager.LanguagesPath}", MessageType.Info);
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void ShowDefaultLanguageDropdown(Rect dropdownRect, LocalizationConfig config, string currentDefault)
+        {
+            var menu = new GenericMenu();
+
+            foreach (var lang in _languageCodes)
+            {
+                menu.AddItem(
+                    new GUIContent(LanguageDefinitions.GetDisplayName(lang)),
+                    currentDefault == lang,
+                    () =>
+                    {
+                        config.SetDefaultLanguage(lang);
+                        LocalizationConfigProvider.SaveConfig();
+                        GUI.changed = true;
+                        Repaint();
+                    }
+                );
+            }
+
+            menu.DropDown(dropdownRect);
         }
 
         private void DrawSaveButton()

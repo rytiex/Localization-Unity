@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Rtl;
 using UnityEngine;
@@ -43,14 +44,28 @@ namespace PicoShot.Localization
             }
         }
 
-        private const string DefaultLanguageCode = "en";
-        private const string FileExtension = ".bloc";
+        private static string FileExtension => ".bloc";
+
+        /// <summary>
+        /// Gets the default language from config.
+        /// </summary>
+        public static string DefaultLanguage => LocalizationConfigProvider.Config.DefaultLanguage;
+
+        /// <summary>
+        /// Gets whether protection is enabled from config.
+        /// </summary>
+        public static bool ProtectionEnabled => LocalizationConfigProvider.Config.ProtectionEnabled;
+
+        /// <summary>
+        /// Gets the selected languages from config (used when protection is enabled).
+        /// </summary>
+        public static IReadOnlyList<string> SelectedLanguages => LocalizationConfigProvider.Config.SelectedLanguages;
 
         #endregion
 
         #region State
 
-        private static string _currentLanguageCode = DefaultLanguageCode;
+        private static string _currentLanguageCode;
         private static bool _isInitialized;
 
         private static Dictionary<string, object> _currentLanguageData;
@@ -64,7 +79,6 @@ namespace PicoShot.Localization
         #region Properties
 
         public static string CurrentLanguage => _currentLanguageCode;
-        public static string DefaultLanguage => DefaultLanguageCode;
         public static bool IsInitialized => _isInitialized;
         public static bool IsRightToLeft => LanguageDefinitions.IsRightToLeft(_currentLanguageCode);
 
@@ -128,18 +142,34 @@ namespace PicoShot.Localization
             }
 
             var blocFiles = Directory.GetFiles(LanguagesPath, $"*{FileExtension}", SearchOption.TopDirectoryOnly);
+            var config = LocalizationConfigProvider.Config;
 
             foreach (var file in blocFiles)
             {
                 string fileName = Path.GetFileNameWithoutExtension(file);
+
+                if (config.ProtectionEnabled && !config.SelectedLanguages.Contains(fileName))
+                {
+                    Debug.Log($"[LocalizationManager] Skipping non-selected language: {fileName}");
+                    continue;
+                }
+
                 _availableLanguages.Add(fileName);
             }
 
-            if (_availableLanguages.Contains(DefaultLanguageCode))
+            if (config.ProtectionEnabled && !_availableLanguages.Contains(config.DefaultLanguage))
+            {
+                if (File.Exists(GetLocaleFilePath(config.DefaultLanguage)))
+                {
+                    _availableLanguages.Add(config.DefaultLanguage);
+                }
+            }
+
+            if (_availableLanguages.Contains(config.DefaultLanguage))
             {
                 try
                 {
-                    var defaultData = LoadLocaleFile(DefaultLanguageCode);
+                    var defaultData = LoadLocaleFile(config.DefaultLanguage);
                     foreach (var key in defaultData.Keys)
                     {
                         _allTranslationKeys.Add(key);
@@ -202,16 +232,16 @@ namespace PicoShot.Localization
                     return fallback;
             }
 
-            return DefaultLanguageCode;
+            return DefaultLanguage;
         }
 
         private static void LoadLanguageData(string languageCode)
         {
             _currentLanguageData = LoadLocaleFile(languageCode);
 
-            if (languageCode != DefaultLanguageCode)
+            if (languageCode != DefaultLanguage)
             {
-                _fallbackLanguageData = LoadLocaleFile(DefaultLanguageCode);
+                _fallbackLanguageData = LoadLocaleFile(DefaultLanguage);
             }
             else
             {
@@ -543,7 +573,7 @@ namespace PicoShot.Localization
             _availableLanguages = null;
 
             _isInitialized = false;
-            _currentLanguageCode = DefaultLanguageCode;
+            _currentLanguageCode = DefaultLanguage;
         }
 
         /// <summary>
