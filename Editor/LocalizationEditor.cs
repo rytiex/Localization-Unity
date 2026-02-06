@@ -321,14 +321,16 @@ namespace PicoShot.Localization
                                lang.Key.ToLower().Contains(_languageFilter.ToLower()))
                 .OrderBy(lang => lang.Value);
 
+            string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
+
             foreach (var lang in filteredLanguages)
             {
                 EditorGUILayout.BeginHorizontal("box");
 
-                bool isEnglish = lang.Key == "en";
+                bool isDefault = lang.Key == defaultLang;
                 bool isSelected = _languageCodes.Contains(lang.Key);
 
-                if (isEnglish)
+                if (isDefault)
                 {
                     EditorGUI.BeginDisabledGroup(true);
                     _ = EditorGUILayout.Toggle(true, GUILayout.Width(20));
@@ -346,7 +348,7 @@ namespace PicoShot.Localization
                     }
                 }
 
-                string label = isEnglish
+                string label = isDefault
                     ? $"{lang.Value} ({lang.Key}) - Default"
                     : $"{lang.Value} ({lang.Key})";
 
@@ -1595,18 +1597,15 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
-        /// Gets the first available value for a key, checking multiple language fallbacks.
+        /// Gets the first available value for a key, checking default language first.
         /// </summary>
         private object GetFirstValue(Dictionary<string, object> keyData)
         {
             if (keyData == null || keyData.Count == 0) return null;
 
-            string[] tryLangs = { "en", "en-US" };
-            foreach (var lang in tryLangs)
-            {
-                if (keyData.TryGetValue(lang, out var value))
-                    return value;
-            }
+            string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
+            if (keyData.TryGetValue(defaultLang, out var value))
+                return value;
 
             return keyData.Values.FirstOrDefault();
         }
@@ -1681,10 +1680,13 @@ namespace PicoShot.Localization
                     "This action cannot be undone!",
                     "Yes, Delete All", "Cancel")) return;
 
+            var config = LocalizationConfigProvider.Config;
+            string defaultLang = config.DefaultLanguage;
+
             _languageData.Clear();
             _keys.Clear();
             _languageCodes.Clear();
-            _languageCodes.Add("en");
+            _languageCodes.Add(defaultLang);
 
             if (Directory.Exists(LocalizationManager.LanguagesPath))
             {
@@ -1695,8 +1697,7 @@ namespace PicoShot.Localization
                 }
             }
 
-            var config = LocalizationConfigProvider.Config;
-            config.SetSelectedLanguages(new List<string> { "en" });
+            config.SetSelectedLanguages(new List<string> { defaultLang });
             LocalizationConfigProvider.SaveConfig();
 
             SaveLanguages();
@@ -1975,10 +1976,12 @@ namespace PicoShot.Localization
         {
             try
             {
+                string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
+
                 _languageData = new Dictionary<string, Dictionary<string, object>>();
                 _keys = new List<string>();
                 _languageCodes.Clear();
-                _languageCodes.Add("en");
+                _languageCodes.Add(defaultLang);
 
                 if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
@@ -2146,12 +2149,13 @@ namespace PicoShot.Localization
         {
             if (!_languageData.TryGetValue(key, out var keyData)) return;
 
+            string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
             string sourceText = null;
-            string sourceLang = "en";
+            string sourceLang = defaultLang;
 
-            if (keyData.TryGetValue("en", out var enValue) && enValue is string enStr)
+            if (keyData.TryGetValue(defaultLang, out var defaultValue) && defaultValue is string defaultStr)
             {
-                sourceText = enStr;
+                sourceText = defaultStr;
             }
             else
             {
@@ -2174,7 +2178,7 @@ namespace PicoShot.Localization
 
                 try
                 {
-                    var translated = await TranslateText(sourceText, "en", lang);
+                    var translated = await TranslateText(sourceText, sourceLang, lang);
                     if (!string.IsNullOrEmpty(translated))
                     {
                         keyData[lang] = translated;
