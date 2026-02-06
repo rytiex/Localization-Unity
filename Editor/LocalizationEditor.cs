@@ -2117,7 +2117,18 @@ namespace PicoShot.Localization
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Translation Context:", GUILayout.Width(150));
+
+            GUI.enabled = DeeplContext != DefaultDeepLContext;
+            if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+            {
+                DeeplContext = DefaultDeepLContext;
+                GUI.FocusControl(null);
+            }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+
             string newContext = EditorGUILayout.TextArea(DeeplContext, GUILayout.MinHeight(60));
             if (newContext != DeeplContext)
             {
