@@ -108,6 +108,10 @@ namespace PicoShot.Localization
         private Vector2 _keysListScroll = Vector2.zero;
         private Vector2 _keyDetailsScroll = Vector2.zero;
         private GameObject _selectedGameObject;
+        private float _keysListPanelWidth = 200f;
+        private const float MinKeysListWidth = 150f;
+        private const float MaxKeysListWidthRatio = 0.5f;
+        private bool _isResizingKeysList;
         private Color _dragAreaColor;
         private readonly HttpClient _httpClient = new();
 
@@ -427,6 +431,7 @@ namespace PicoShot.Localization
 
             EditorGUILayout.BeginHorizontal();
             DrawKeysListPanel();
+            DrawResizeHandle();
             DrawKeyDetailsPanel();
             EditorGUILayout.EndHorizontal();
         }
@@ -589,15 +594,11 @@ namespace PicoShot.Localization
 
         private void DrawKeysListPanel()
         {
-            float listPanelWidth = 180f;
-
-            EditorGUILayout.BeginVertical("box", GUILayout.Width(listPanelWidth));
-            EditorGUILayout.LabelField("Keys", EditorStyles.boldLabel, GUILayout.Width(listPanelWidth));
+            EditorGUILayout.BeginVertical("box", GUILayout.Width(_keysListPanelWidth));
+            EditorGUILayout.LabelField("Keys", EditorStyles.boldLabel);
 
             var filteredKeys = FilterKeys().ToList();
             int totalKeyCount = filteredKeys.Count;
-
-
 
             float viewportHeight = position.height - 300f;
             int maxVisibleItems = Mathf.CeilToInt(viewportHeight / _keyItemHeight) + 1;
@@ -605,7 +606,7 @@ namespace PicoShot.Localization
             Rect scrollViewRect = EditorGUILayout.GetControlRect(
                 false,
                 viewportHeight,
-                GUILayout.Width(listPanelWidth),
+                GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(false)
             );
 
@@ -613,7 +614,7 @@ namespace PicoShot.Localization
             _keysListScroll = GUI.BeginScrollView(
                 scrollViewRect,
                 _keysListScroll,
-                new Rect(0, 0, listPanelWidth - 20, totalContentHeight)
+                new Rect(0, 0, scrollViewRect.width - 20, totalContentHeight)
             );
 
             if (totalKeyCount > 0)
@@ -624,12 +625,51 @@ namespace PicoShot.Localization
 
                 for (int i = startIndex; i < endIndex; i++)
                 {
-                    DrawKeyListItem(filteredKeys[i], i, listPanelWidth);
+                    DrawKeyListItem(filteredKeys[i], i, scrollViewRect.width);
                 }
             }
 
             GUI.EndScrollView();
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawResizeHandle()
+        {
+            const float handleWidth = 5f;
+            Rect handleRect = EditorGUILayout.GetControlRect(
+                false,
+                position.height - 300f,
+                GUILayout.Width(handleWidth),
+                GUILayout.ExpandHeight(false)
+            );
+
+            EditorGUIUtility.AddCursorRect(handleRect, MouseCursor.ResizeHorizontal);
+
+            if (Event.current.type == EventType.MouseDown && handleRect.Contains(Event.current.mousePosition))
+            {
+                _isResizingKeysList = true;
+            }
+
+            if (_isResizingKeysList)
+            {
+                if (Event.current.type == EventType.MouseUp || Event.current.type == EventType.MouseLeaveWindow)
+                {
+                    _isResizingKeysList = false;
+                }
+                else if (Event.current.type == EventType.MouseDrag)
+                {
+                    float maxWidth = position.width * MaxKeysListWidthRatio;
+                    _keysListPanelWidth = Mathf.Clamp(_keysListPanelWidth + Event.current.delta.x, MinKeysListWidth, maxWidth);
+                    Event.current.Use();
+                    Repaint();
+                }
+            }
+
+            // Draw a subtle visual indicator
+            Color prevColor = GUI.color;
+            GUI.color = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+            GUI.DrawTexture(handleRect, EditorGUIUtility.whiteTexture);
+            GUI.color = prevColor;
         }
 
         private void DrawKeyListItem(string key, int index, float width)

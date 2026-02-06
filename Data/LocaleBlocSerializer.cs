@@ -18,7 +18,6 @@ namespace PicoShot.Localization.Data
 
         // Flags
         private const ushort FlagCompressed = 0x01;
-        private const ushort FlagReserved = 0xFE; // Reserved for future use
 
         /// <summary>
         /// Compression level for BLOC files. Set to Optimal for best compression,
