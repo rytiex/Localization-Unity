@@ -6,7 +6,9 @@ using System.Security.Cryptography;
 using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Rtl;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PicoShot.Localization
 {
@@ -607,6 +609,190 @@ namespace PicoShot.Localization
         }
 
 #endif
+
+        #endregion
+
+        #region Bind Functions
+
+        /// <summary>
+        /// Binds a TMP_Text component to a translation key.
+        /// </summary>
+        /// <param name="textComponent">The TMP_Text component to bind.</param>
+        /// <param name="key">The translation key.</param>
+        /// <param name="arrayIndex">For array values: -1 = use as string, >= 0 = specific array index.</param>
+        /// <param name="textProcessor">Optional function to process text before display.</param>
+        /// <param name="args">Format parameters for the translation.</param>
+        public static void BindText(TMP_Text textComponent, string key, int arrayIndex = -1, Func<string, string> textProcessor = null, params object[] args)
+        {
+            if (textComponent == null)
+            {
+                Debug.LogError("[LocalizationManager] BindText called with null TMP_Text component");
+                return;
+            }
+
+            var localizedComponent = textComponent.GetComponent<LocalizationTextComponent>();
+            if (localizedComponent == null)
+            {
+                localizedComponent = textComponent.gameObject.AddComponent<LocalizationTextComponent>();
+            }
+
+            localizedComponent.TranslationKey = key;
+            localizedComponent.ArrayIndex = arrayIndex;
+            
+            if (args != null && args.Length > 0)
+            {
+                localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
+            }
+
+            if (textProcessor != null)
+            {
+                localizedComponent.AddTextProcessor(textProcessor);
+            }
+        }
+
+        /// <summary>
+        /// Binds a TMP_Dropdown component to a translation key (array type).
+        /// </summary>
+        /// <param name="dropdown">The TMP_Dropdown component to bind.</param>
+        /// <param name="key">The translation key for the array values.</param>
+        /// <param name="arrayMaxSize">Maximum number of array elements to use (0 = unlimited).</param>
+        /// <param name="textProcessor">Optional function to process each option before display.</param>
+        /// <param name="args">Format parameters for each option (applied to all).</param>
+        public static void BindText(TMP_Dropdown dropdown, string key, int arrayMaxSize = 0, Func<string, string> textProcessor = null, params object[] args)
+        {
+            if (dropdown == null)
+            {
+                Debug.LogError("[LocalizationManager] BindText called with null TMP_Dropdown component");
+                return;
+            }
+
+            var localizedComponent = dropdown.GetComponent<LocalizationTextComponent>();
+            if (localizedComponent == null)
+            {
+                localizedComponent = dropdown.gameObject.AddComponent<LocalizationTextComponent>();
+            }
+
+            localizedComponent.TranslationKey = key;
+            localizedComponent.ArraySizeLimit = arrayMaxSize;
+            
+            if (args != null && args.Length > 0)
+            {
+                localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
+            }
+
+            if (textProcessor != null)
+            {
+                localizedComponent.AddTextProcessor(textProcessor);
+            }
+        }
+
+        /// <summary>
+        /// Binds a Legacy Text component to a translation key.
+        /// </summary>
+        /// <param name="textComponent">The Legacy Text component to bind.</param>
+        /// <param name="key">The translation key.</param>
+        /// <param name="arrayIndex">For array values: -1 = use as string, >= 0 = specific array index.</param>
+        /// <param name="textProcessor">Optional function to process text before display.</param>
+        /// <param name="args">Format parameters for the translation.</param>
+        public static void BindText(Text textComponent, string key, int arrayIndex = -1, Func<string, string> textProcessor = null, params object[] args)
+        {
+            if (textComponent == null)
+            {
+                Debug.LogError("[LocalizationManager] BindText called with null Text component");
+                return;
+            }
+
+            var localizedComponent = textComponent.GetComponent<LocalizationTextComponent>();
+            if (localizedComponent == null)
+            {
+                localizedComponent = textComponent.gameObject.AddComponent<LocalizationTextComponent>();
+            }
+
+            localizedComponent.TranslationKey = key;
+            localizedComponent.ArrayIndex = arrayIndex;
+            
+            if (args != null && args.Length > 0)
+            {
+                localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
+            }
+
+            if (textProcessor != null)
+            {
+                localizedComponent.AddTextProcessor(textProcessor);
+            }
+        }
+
+        /// <summary>
+        /// Binds a Legacy Dropdown component to a translation key (array type).
+        /// </summary>
+        /// <param name="dropdown">The Legacy Dropdown component to bind.</param>
+        /// <param name="key">The translation key for the array values.</param>
+        /// <param name="arrayMaxSize">Maximum number of array elements to use (0 = unlimited).</param>
+        /// <param name="textProcessor">Optional function to process each option before display.</param>
+        /// <param name="args">Format parameters for each option (applied to all).</param>
+        public static void BindText(Dropdown dropdown, string key, int arrayMaxSize = 0, Func<string, string> textProcessor = null, params object[] args)
+        {
+            if (dropdown == null)
+            {
+                Debug.LogError("[LocalizationManager] BindText called with null Dropdown component");
+                return;
+            }
+
+            var localizedComponent = dropdown.GetComponent<LocalizationTextComponent>();
+            if (localizedComponent == null)
+            {
+                localizedComponent = dropdown.gameObject.AddComponent<LocalizationTextComponent>();
+            }
+
+            localizedComponent.TranslationKey = key;
+            localizedComponent.ArraySizeLimit = arrayMaxSize;
+            
+            if (args != null && args.Length > 0)
+            {
+                localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
+            }
+
+            if (textProcessor != null)
+            {
+                localizedComponent.AddTextProcessor(textProcessor);
+            }
+        }
+
+        /// <summary>
+        /// Binds a TextMesh component to a translation key.
+        /// </summary>
+        /// <param name="textMesh">The TextMesh component to bind.</param>
+        /// <param name="key">The translation key.</param>
+        /// <param name="arrayIndex">For array values: -1 = use as string, >= 0 = specific array index.</param>
+        /// <param name="textProcessor">Optional function to process text before display.</param>
+        /// <param name="args">Format parameters for the translation.</param>
+        public static void BindText(TextMesh textMesh, string key, int arrayIndex = -1, Func<string, string> textProcessor = null, params object[] args)
+        {
+            if (textMesh == null)
+            {
+                Debug.LogError("[LocalizationManager] BindText called with null TextMesh component");
+                return;
+            }
+
+            var localizedComponent = textMesh.GetComponent<LocalizationTextComponent>();
+            if (localizedComponent == null)
+            {
+                localizedComponent = textMesh.gameObject.AddComponent<LocalizationTextComponent>();
+            }
+
+            localizedComponent.TranslationKey = key;
+            localizedComponent.ArrayIndex = arrayIndex;
+            
+            if (args != null && args.Length > 0)
+            {
+                localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
+            }
+
+            if (textProcessor != null)
+            {
+                localizedComponent.AddTextProcessor(textProcessor);
+            }
+        }
 
         #endregion
 

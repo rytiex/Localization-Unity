@@ -11,6 +11,8 @@ Complete API documentation for PicoShot Localization system.
 - [Setting Language](#setting-language)
 - [Text Retrieval](#text-retrieval)
 - [Bind Functions (Components)](#bind-functions-components)
+  - [Quick Bind Methods](#quick-bind-methods)
+  - [Manual Component Usage](#manual-component-usage)
 - [Events](#events)
 - [Advanced Usage](#advanced-usage)
 
@@ -212,13 +214,83 @@ IEnumerable<string> allKeys = LocalizationManager.GetAllKeys();
 
 The `LocalizationTextComponent` automatically binds text components to the localization system.
 
-### Basic Usage
+### Quick Bind Methods
+
+The easiest way to bind text components is using the `BindText` methods on `LocalizationManager`:
+
+#### TMP_Text
 
 ```csharp
-// Add component via code
-var localized = gameObject.AddComponent<LocalizationTextComponent>();
-localized.TranslationKey = "greeting";
+// Simple binding
+LocalizationManager.BindText(myTextComponent, "greeting");
+
+// With format parameters
+LocalizationManager.BindText(myTextComponent, "welcome_message", args: "Player");
+LocalizationManager.BindText(myTextComponent, "stats", args: new object[] { 100, 50 });
+
+// With array index (for array-type translations)
+LocalizationManager.BindText(myTextComponent, "difficulty_options", arrayIndex: 2);
+
+// With text processor
+LocalizationManager.BindText(myTextComponent, "greeting", textProcessor: text => text.ToUpper());
+
+// Full example
+LocalizationManager.BindText(
+    myTextComponent, 
+    "welcome_message", 
+    arrayIndex: -1,
+    textProcessor: text => $"<color=green>{text}</color>",
+    args: "Player"
+);
 ```
+
+#### TMP_Dropdown
+
+```csharp
+// Bind dropdown to array translation
+LocalizationManager.BindText(myDropdown, "difficulty_options");
+
+// Limit number of options
+LocalizationManager.BindText(myDropdown, "difficulty_options", arrayMaxSize: 5);
+
+// With text processor applied to each option
+LocalizationManager.BindText(
+    myDropdown, 
+    "menu_items", 
+    arrayMaxSize: 10,
+    textProcessor: text => text.ToUpper()
+);
+```
+
+#### Legacy Text (UnityEngine.UI.Text)
+
+```csharp
+// Same API as TMP_Text
+LocalizationManager.BindText(legacyText, "greeting");
+LocalizationManager.BindText(legacyText, "welcome", args: "Player");
+LocalizationManager.BindText(legacyText, "stats", arrayIndex: -1, args: new object[] { 100, 50 });
+```
+
+#### Legacy Dropdown (UnityEngine.UI.Dropdown)
+
+```csharp
+// Same API as TMP_Dropdown
+LocalizationManager.BindText(legacyDropdown, "difficulty_options");
+LocalizationManager.BindText(legacyDropdown, "menu_items", arrayMaxSize: 5);
+```
+
+#### TextMesh (3D Text)
+
+```csharp
+// Same API as TMP_Text
+LocalizationManager.BindText(textMesh, "greeting");
+LocalizationManager.BindText(textMesh, "welcome", args: "Player");
+LocalizationManager.BindText(textMesh, "title", arrayIndex: 0);
+```
+
+### Manual Component Usage
+
+For more control, you can work with `LocalizationTextComponent` directly:
 
 ### Properties
 
@@ -441,6 +513,72 @@ public class ScoreDisplay : MonoBehaviour
         localizedText.SetFormatParameters(
             ScoreManager.CurrentScore.ToString(),
             ScoreManager.HighScore.ToString()
+        );
+    }
+}
+```
+
+### Using BindText Methods
+
+```csharp
+public class MainMenuBinder : MonoBehaviour
+{
+    [SerializeField] private TMP_Text titleText;
+    [SerializeField] private TMP_Text playButtonText;
+    [SerializeField] private TMP_Text scoreText;
+    [SerializeField] private TMP_Dropdown difficultyDropdown;
+    [SerializeField] private TextMesh versionText3D;
+
+    void Start()
+    {
+        // Simple bindings
+        LocalizationManager.BindText(titleText, "game_title");
+        LocalizationManager.BindText(playButtonText, "play_button");
+        LocalizationManager.BindText(versionText3D, "version_info", args: "1.0.0");
+
+        // Score with format parameters
+        UpdateScore(0, 0);
+
+        // Dropdown with difficulty options
+        LocalizationManager.BindText(difficultyDropdown, "difficulty_options", arrayMaxSize: 4);
+        
+        // Subscribe to score changes
+        ScoreManager.OnScoreChanged += UpdateScore;
+    }
+
+    void UpdateScore(int current, int high)
+    {
+        LocalizationManager.BindText(
+            scoreText, 
+            "score_display", 
+            args: new object[] { current, high }
+        );
+    }
+}
+```
+
+### BindText with Text Processor
+
+```csharp
+public class StyledTextBinder : MonoBehaviour
+{
+    [SerializeField] private TMP_Text headerText;
+    [SerializeField] private TMP_Text warningText;
+
+    void Start()
+    {
+        // Header with color styling
+        LocalizationManager.BindText(
+            headerText,
+            "level_header",
+            textProcessor: text => $"<size=32><b>{text}</b></size>"
+        );
+
+        // Warning with color and icon
+        LocalizationManager.BindText(
+            warningText,
+            "warning_message",
+            textProcessor: text => $"<color=red>⚠ {text}</color>"
         );
     }
 }
