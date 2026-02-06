@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Rtl;
@@ -52,9 +54,19 @@ namespace PicoShot.Localization
         public static string DefaultLanguage => LocalizationConfigProvider.Config.DefaultLanguage;
 
         /// <summary>
-        /// Gets whether protection is enabled from config.
+        /// Gets the current protection mode from config.
         /// </summary>
-        public static bool ProtectionEnabled => LocalizationConfigProvider.Config.ProtectionEnabled;
+        public static ProtectionMode ProtectionMode => LocalizationConfigProvider.Config.ProtectionMode;
+
+        /// <summary>
+        /// Gets whether any protection is enabled.
+        /// </summary>
+        public static bool IsProtectionEnabled => LocalizationConfigProvider.Config.IsProtectionEnabled;
+
+        /// <summary>
+        /// Gets whether anti-tamper mode is enabled.
+        /// </summary>
+        public static bool IsAntiTamperEnabled => LocalizationConfigProvider.Config.IsAntiTamperEnabled;
 
         /// <summary>
         /// Gets the selected languages from config (used when protection is enabled).
@@ -148,16 +160,27 @@ namespace PicoShot.Localization
             {
                 string fileName = Path.GetFileNameWithoutExtension(file);
 
-                if (config.ProtectionEnabled && !config.SelectedLanguages.Contains(fileName))
+                if ((config.ProtectionMode == ProtectionMode.SelectionOnly || config.ProtectionMode == ProtectionMode.Both) && !config.SelectedLanguages.Contains(fileName))
                 {
                     Debug.Log($"[LocalizationManager] Skipping non-selected language: {fileName}");
                     continue;
                 }
 
+                if (config.IsAntiTamperEnabled)
+                {
+                    string fileNameWithExt = Path.GetFileName(file);
+                    if (!VerifyFileHash(file, fileNameWithExt, config))
+                    {
+                        Debug.LogError($"[LocalizationManager] Hash verification failed for: {fileName}");
+                        OnLanguageLoadError?.Invoke($"File tampering detected: {fileName}");
+                        continue;
+                    }
+                }
+
                 _availableLanguages.Add(fileName);
             }
 
-            if (config.ProtectionEnabled && !_availableLanguages.Contains(config.DefaultLanguage))
+            if (config.IsProtectionEnabled && !_availableLanguages.Contains(config.DefaultLanguage))
             {
                 if (File.Exists(GetLocaleFilePath(config.DefaultLanguage)))
                 {
@@ -291,6 +314,32 @@ namespace PicoShot.Localization
                 return new List<string>(stringArray);
 
             return value?.ToString();
+        }
+
+        /// <summary>
+        /// Verifies file hash for anti-tamper protection.
+        /// </summary>
+        private static bool VerifyFileHash(string filePath, string fileName, LocalizationConfig config)
+        {
+            if (!config.TryGetFileHash(fileName, out string expectedHash))
+            {
+                Debug.LogWarning($"[LocalizationManager] No hash stored for file: {fileName}");
+                return false;
+            }
+
+            string actualHash = CalculateFileHash(filePath);
+            return string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Calculates SHA256 hash of a file.
+        /// </summary>
+        public static string CalculateFileHash(string filePath)
+        {
+            using var sha256 = SHA256.Create();
+            using var stream = File.OpenRead(filePath);
+            byte[] hash = sha256.ComputeHash(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
         /// <summary>

@@ -1471,20 +1471,41 @@ namespace PicoShot.Localization
             EditorGUILayout.LabelField("Protection Settings", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Enable Protection:", GUILayout.Width(120));
-            bool newProtection = EditorGUILayout.Toggle(config.ProtectionEnabled);
-            if (newProtection != config.ProtectionEnabled)
+            EditorGUILayout.LabelField("Protection Mode:", GUILayout.Width(120));
+            var newMode = (ProtectionMode)EditorGUILayout.EnumPopup(config.ProtectionMode);
+            if (newMode != config.ProtectionMode)
             {
-                config.SetProtectionEnabled(newProtection);
+                config.SetProtectionMode(newMode);
                 LocalizationConfigProvider.SaveConfig();
                 GUI.changed = true;
             }
             EditorGUILayout.EndHorizontal();
 
-            EditorGUILayout.HelpBox(
-                "When protection is enabled, only languages selected in the Languages tab will be loaded at runtime. " +
-                "This prevents users from injecting unauthorized language files.",
-                MessageType.Info);
+            if (config.IsAntiTamperEnabled)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("", GUILayout.Width(120));
+                if (GUILayout.Button("Sync File Hashes", GUILayout.Height(25)))
+                {
+                    SyncFileHashes(config);
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.HelpBox(
+                    "Anti-Tamper: File hashes are verified at runtime. " +
+                    "Click 'Sync File Hashes' after modifying language files.",
+                    MessageType.Info);
+            }
+
+            string protectionHelp = config.ProtectionMode switch
+            {
+                ProtectionMode.Disabled => "Protection is disabled. All language files can be loaded.",
+                ProtectionMode.SelectionOnly => "Only selected languages can be loaded at runtime. This prevents loading unauthorized language files.",
+                ProtectionMode.AntiTamper => "Anti-tamper protection with hash verification. File hashes are verified at runtime to detect modifications.",
+                ProtectionMode.Both => "Full protection: Only selected languages can be loaded AND file hashes are verified to detect any modifications.",
+                _ => ""
+            };
+            EditorGUILayout.HelpBox(protectionHelp, MessageType.Info);
 
             EditorGUILayout.Space();
 
@@ -1576,6 +1597,54 @@ namespace PicoShot.Localization
         {
             config.SetSelectedLanguages(new List<string>(_languageCodes));
             LocalizationConfigProvider.SaveConfig();
+        }
+
+        /// <summary>
+        /// Calculates and stores SHA256 hashes for all language files.
+        /// </summary>
+        private void SyncFileHashes(LocalizationConfig config)
+        {
+            try
+            {
+                if (!Directory.Exists(LocalizationManager.LanguagesPath))
+                {
+                    EditorUtility.DisplayDialog("Error", "Languages directory not found.", "OK");
+                    return;
+                }
+
+                var files = Directory.GetFiles(LocalizationManager.LanguagesPath, "*.bloc");
+                int syncedCount = 0;
+                int removedCount = 0;
+
+                var existingHashes = new HashSet<string>(config.GetFileHashes().Select(h => h.fileName));
+
+                foreach (var file in files)
+                {
+                    string fileName = Path.GetFileName(file);
+                    string hash = LocalizationManager.CalculateFileHash(file);
+                    config.SetFileHash(fileName, hash);
+                    syncedCount++;
+                    existingHashes.Remove(fileName);
+                }
+
+                foreach (var oldFile in existingHashes)
+                {
+                    config.RemoveFileHash(oldFile);
+                    removedCount++;
+                }
+
+                LocalizationConfigProvider.SaveConfig();
+
+                EditorUtility.DisplayDialog("Hashes Synced",
+                    $"Successfully synced {syncedCount} file hashes.\n" +
+                    $"Removed {removedCount} outdated hashes.", "OK");
+                Debug.Log($"[LocalizationEditor] Synced {syncedCount} file hashes, removed {removedCount} outdated.");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Error", $"Failed to sync hashes: {ex.Message}", "OK");
+                Debug.LogError($"[LocalizationEditor] Hash sync failed: {ex}");
+            }
         }
 
         private void ShowDefaultLanguageDropdown(Rect dropdownRect, LocalizationConfig config, string currentDefault)
@@ -2100,6 +2169,11 @@ namespace PicoShot.Localization
             if (changed)
             {
                 LocalizationConfigProvider.SaveConfig();
+            }
+
+            if (config.IsAntiTamperEnabled)
+            {
+                SyncFileHashes(config);
             }
         }
 
