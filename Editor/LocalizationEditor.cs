@@ -29,9 +29,10 @@ namespace PicoShot.Localization
         private const float _keyItemHeight = 22f;
         private const string DeeplApiUrl = "https://api-free.deepl.com/v2/translate";
         private const string DeeplApiKeyPref = "PicoShot_Localization_DeepLApiKey";
+        private const int DeeplRequestDelayMs = 350;
 
         /// <summary>
-        /// Gets or sets the DeepL API key from EditorPrefs (not included in builds).
+        /// Gets or sets the DeepL API key from EditorPrefs
         /// </summary>
         private string DeeplApiKey
         {
@@ -2152,7 +2153,11 @@ namespace PicoShot.Localization
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(sourceText)) return;
+            if (string.IsNullOrWhiteSpace(sourceText))
+            {
+                Debug.LogWarning($"The source text is empty for key '{key}', source text must be set to translate.");
+                return;
+            }
 
             foreach (var lang in _languageCodes.Where(l => l != sourceLang))
             {
@@ -2167,6 +2172,8 @@ namespace PicoShot.Localization
                         _hasUnsavedChanges = true;
                         Repaint();
                     }
+
+                    await Task.Delay(DeeplRequestDelayMs);
                 }
                 catch (Exception ex)
                 {
@@ -2177,14 +2184,16 @@ namespace PicoShot.Localization
 
         private async Task<string> TranslateText(string text, string sourceLang, string targetLang)
         {
-            string deeplSourceLang = LanguageDefinitions.ToDeepLCode(sourceLang);
-            string deeplTargetLang = LanguageDefinitions.ToDeepLCode(targetLang);
+            string deeplSourceLang = sourceLang.ToUpperInvariant();
+            string deeplTargetLang = targetLang.ToUpperInvariant();
 
             var requestBody = new DeepLTranslateRequest
             {
                 text = new[] { text },
                 source_lang = deeplSourceLang,
-                target_lang = deeplTargetLang
+                target_lang = deeplTargetLang,
+                context = "This is text for a game locale. The translation should be concise and suitable for game."
+
             };
 
             string jsonBody = JsonUtility.ToJson(requestBody);
@@ -2207,6 +2216,7 @@ namespace PicoShot.Localization
             catch (Exception ex)
             {
                 Debug.LogError($"DeepL translation failed: {ex.Message}");
+                Debug.LogError($"Request Body: {jsonBody}");
                 return string.Empty;
             }
         }
@@ -2259,6 +2269,7 @@ namespace PicoShot.Localization
             public string[] text;
             public string source_lang;
             public string target_lang;
+            public string context;
         }
 
         #endregion

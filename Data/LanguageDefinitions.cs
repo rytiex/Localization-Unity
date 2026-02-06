@@ -20,14 +20,10 @@ namespace PicoShot.Localization.Data
         public static readonly Dictionary<string, string> FallbackLanguages = new(StringComparer.OrdinalIgnoreCase)
         {
             // Chinese variants
-            { "zh-CN", "zh" },
-            { "zh-SG", "zh" },
-            { "zh-TW", "zh" },
-            { "zh-HK", "zh" },
-            { "zh-Hant", "zh" },
-            // Portuguese variants
-            { "pt-BR", "pt" },
-            { "pt-PT", "pt" },
+            { "zh-CN", "zh-hans" },
+            { "zh-SG", "zh-hans" },
+            { "zh-TW", "zh-hans" },
+            { "zh-HK", "zh-hans" },
             // Spanish variants
             { "es-MX", "es" },
             { "es-ES", "es" },
@@ -45,8 +41,8 @@ namespace PicoShot.Localization.Data
             { "en-GB", "en" },
             { "en-AU", "en" },
             { "en-CA", "en" },
-            // Kurdish variants map to available codes
-            { "ku", "ckb" },
+            // Kurdish variants
+            { "ku", "kmr" },
             // Norwegian
             { "no", "nb" },
             // Serbian variants
@@ -55,7 +51,7 @@ namespace PicoShot.Localization.Data
         };
 
         /// <summary>
-        /// English display names for languages (DeepL supported).
+        /// English display names for languages
         /// </summary>
         public static readonly Dictionary<string, string> LanguageNames = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -139,7 +135,8 @@ namespace PicoShot.Localization.Data
             { "pl", "Polish" },
             { "prs", "Dari" },
             { "ps", "Pashto" },
-            { "pt", "Portuguese" },
+            { "pt-pt", "Portuguese" },
+            { "pt-br", "Portuguese (Brazilian)" },
             { "qu", "Quechua" },
             { "ro", "Romanian" },
             { "ru", "Russian" },
@@ -171,7 +168,8 @@ namespace PicoShot.Localization.Data
             { "xh", "Xhosa" },
             { "yi", "Yiddish" },
             { "yue", "Cantonese" },
-            { "zh", "Chinese" },
+            { "zh-hans", "Chinese (simplified)" },
+            { "zh-hant", "Chinese (traditional)" },
             { "zu", "Zulu" },
         };
 
@@ -260,7 +258,8 @@ namespace PicoShot.Localization.Data
             { "pl", "polski" },
             { "prs", "دری" },
             { "ps", "پښتو" },
-            { "pt", "português" },
+            { "pt-pt", "Português" },
+            { "pt-br", "Português (Brasil)" },
             { "qu", "Runa Simi" },
             { "ro", "română" },
             { "ru", "русский" },
@@ -292,7 +291,8 @@ namespace PicoShot.Localization.Data
             { "xh", "isiXhosa" },
             { "yi", "ייִדיש" },
             { "yue", "粵語" },
-            { "zh", "中文" },
+            { "zh-hans", "简体中文" },
+            { "zh-hant", "繁體中文" },
             { "zu", "isiZulu" },
         };
 
@@ -404,23 +404,6 @@ namespace PicoShot.Localization.Data
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Gets the DeepL-compatible language code for translation.
-        /// DeepL uses specific codes (e.g., "PT-PT" for European Portuguese).
-        /// </summary>
-        public static string ToDeepLCode(string languageCode)
-        {
-            return languageCode.ToLowerInvariant() switch
-            {
-                "pt" => "PT-PT",
-                "zh" => "ZH",
-                "nb" => "NB",  // Norwegian Bokmål
-                "ckb" => "KU", // Kurdish (Sorani)
-                "kmr" => "KU", // Kurdish (Kurmanji)
-                _ => languageCode.ToUpperInvariant()
-            };
         }
     }
 }
