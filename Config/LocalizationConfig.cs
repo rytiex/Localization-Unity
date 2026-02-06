@@ -6,7 +6,6 @@ namespace PicoShot.Localization.Config
     /// <summary>
     /// Configuration asset for localization system.
     /// </summary>
-    [CreateAssetMenu(fileName = "LocalizationConfig", menuName = "PicoShot/Localization Config")]
     public class LocalizationConfig : ScriptableObject
     {
         [Tooltip("Default language code to use when system language is not available")]

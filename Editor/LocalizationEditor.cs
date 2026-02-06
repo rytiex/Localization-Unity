@@ -6,7 +6,6 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Linq;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEditor.Compilation;
 using PicoShot.Localization.Config;
@@ -18,7 +17,6 @@ namespace PicoShot.Localization
     public class LocalizationEditor : EditorWindow
     {
         #region Variables
-
         private bool _hasUnsavedChanges;
         private bool _showStatusSection = true;
         private bool _showTestingTools = true;
@@ -76,7 +74,7 @@ namespace PicoShot.Localization
 
         #region Unity Functions
 
-        [MenuItem("Tools/Localization/Localization Editor")]
+        [MenuItem("Tools/Localization/Language Editor")]
         public static void OpenWindow()
         {
             GetWindow<LocalizationEditor>("Language Editor");
@@ -339,9 +337,11 @@ namespace PicoShot.Localization
                     }
                 }
 
-                EditorGUILayout.LabelField(
-                    isEnglish ? $"{lang.Value} ({lang.Key}) - Default" : $"{lang.Value} ({lang.Key})",
-                    EditorStyles.boldLabel);
+                string label = isEnglish
+                    ? $"{lang.Value} ({lang.Key}) - Default"
+                    : $"{lang.Value} ({lang.Key})";
+
+                EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
 
                 EditorGUILayout.EndHorizontal();
             }
@@ -646,7 +646,7 @@ namespace PicoShot.Localization
             EditorGUILayout.BeginVertical(GUILayout.Width(position.width / 2 - 10));
             DrawStatusField("Initialized", LocalizationManager.IsInitialized.ToString(), MessageType.Info);
             DrawStatusField("Current Language", LocalizationManager.CurrentLanguage, MessageType.Info);
-            DrawStatusField("Default Language", LanguageDefinitions.DefaultLanguage, MessageType.Info);
+            DrawStatusField("Default Language", LocalizationManager.DefaultLanguage, MessageType.Info);
             DrawStatusField("Is RTL Language", LocalizationManager.IsRightToLeft.ToString(), MessageType.Info);
             EditorGUILayout.EndVertical();
 
@@ -1481,37 +1481,9 @@ namespace PicoShot.Localization
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "When protection is enabled, only selected languages will be loaded. " +
+                "When protection is enabled, only languages selected in the Languages tab will be loaded at runtime. " +
                 "This prevents users from injecting unauthorized language files.",
                 MessageType.Info);
-
-            if (config.ProtectionEnabled)
-            {
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Allowed Languages:", EditorStyles.boldLabel);
-
-                EditorGUI.indentLevel++;
-                foreach (var lang in _languageCodes)
-                {
-                    EditorGUILayout.BeginHorizontal();
-                    bool wasSelected = config.SelectedLanguages.Contains(lang);
-                    bool isSelected = EditorGUILayout.Toggle(
-                        LanguageDefinitions.GetDisplayName(lang),
-                        wasSelected);
-
-                    if (isSelected != wasSelected)
-                    {
-                        if (isSelected)
-                            config.AddSelectedLanguage(lang);
-                        else
-                            config.RemoveSelectedLanguage(lang);
-                        LocalizationConfigProvider.SaveConfig();
-                        GUI.changed = true;
-                    }
-                    EditorGUILayout.EndHorizontal();
-                }
-                EditorGUI.indentLevel--;
-            }
 
             EditorGUILayout.Space();
 
@@ -1542,6 +1514,12 @@ namespace PicoShot.Localization
             EditorGUILayout.HelpBox($"Languages Path: {LocalizationManager.LanguagesPath}", MessageType.Info);
 
             EditorGUILayout.EndVertical();
+        }
+
+        private void SyncProtectionWithLanguages(LocalizationConfig config)
+        {
+            config.SetSelectedLanguages(new List<string>(_languageCodes));
+            LocalizationConfigProvider.SaveConfig();
         }
 
         private void ShowDefaultLanguageDropdown(Rect dropdownRect, LocalizationConfig config, string currentDefault)
@@ -1692,6 +1670,10 @@ namespace PicoShot.Localization
                 }
             }
 
+            var config = LocalizationConfigProvider.Config;
+            config.SetSelectedLanguages(new List<string> { "en" });
+            LocalizationConfigProvider.SaveConfig();
+
             SaveLanguages();
             Repaint();
         }
@@ -1730,6 +1712,11 @@ namespace PicoShot.Localization
                     AddLanguageToKey(key, language);
                 }
 
+                var config = LocalizationConfigProvider.Config;
+                config.AddSelectedLanguage(language);
+                LocalizationConfigProvider.SaveConfig();
+
+                _hasUnsavedChanges = true;
                 GUI.changed = true;
                 Repaint();
             }
@@ -1775,6 +1762,11 @@ namespace PicoShot.Localization
                     File.Delete(filePath);
                 }
 
+                var config = LocalizationConfigProvider.Config;
+                config.RemoveSelectedLanguage(language);
+                LocalizationConfigProvider.SaveConfig();
+
+                _hasUnsavedChanges = true;
                 Debug.Log($"Language '{language}' deleted.");
             }
             else
@@ -2022,6 +2014,8 @@ namespace PicoShot.Localization
                     }
                 }
 
+                SyncProtectionOnLoad();
+
                 Debug.Log($"[LocalizationEditor] Loaded {_keys.Count} keys across {_languageCodes.Count} languages.");
             }
             catch (Exception ex)
@@ -2029,6 +2023,26 @@ namespace PicoShot.Localization
                 Debug.LogError($"[LocalizationEditor] Error loading language data: {ex.Message}");
                 _languageData = new Dictionary<string, Dictionary<string, object>>();
                 _keys = new List<string>();
+            }
+        }
+
+        private void SyncProtectionOnLoad()
+        {
+            var config = LocalizationConfigProvider.Config;
+
+            bool changed = false;
+            foreach (var lang in _languageCodes)
+            {
+                if (!config.SelectedLanguages.Contains(lang))
+                {
+                    config.AddSelectedLanguage(lang);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                LocalizationConfigProvider.SaveConfig();
             }
         }
 
@@ -2061,6 +2075,9 @@ namespace PicoShot.Localization
                     string filePath = LocalizationManager.GetLanguageFilePath(lang);
                     LocalizationManager.SaveLocaleToFile(filePath, localeData);
                 }
+
+                var config = LocalizationConfigProvider.Config;
+                SyncProtectionWithLanguages(config);
 
                 _hasUnsavedChanges = false;
                 ShowNotification(new GUIContent("Language data saved successfully!"));
