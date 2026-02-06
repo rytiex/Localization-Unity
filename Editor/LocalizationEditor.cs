@@ -1531,6 +1531,20 @@ namespace PicoShot.Localization
 
             EditorGUILayout.EndHorizontal();
 
+            EditorGUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Export to JSON", GUILayout.Height(25)))
+            {
+                ExportToJson();
+            }
+
+            if (GUILayout.Button("Import from JSON", GUILayout.Height(25)))
+            {
+                ImportFromJson();
+            }
+
+            EditorGUILayout.EndHorizontal();
+
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox($"Languages Path: {LocalizationManager.LanguagesPath}", MessageType.Info);
 
@@ -2236,6 +2250,429 @@ namespace PicoShot.Localization
                 .Replace("\\t", "\t")
                 .Replace("\\\"", "\"")
                 .Replace("\\\\", "\\");
+        }
+
+        #endregion
+
+        #region JSON Import/Export
+
+        /// <summary>
+        /// Escapes a string for JSON output.
+        /// </summary>
+        private static string EscapeJsonString(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return "";
+            return str
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
+        }
+
+        /// <summary>
+        /// Exports all localization data to a JSON file.
+        /// Arrays are exported as ["value1", "value2"], strings as "value".
+        /// </summary>
+        private void ExportToJson()
+        {
+            string path = EditorUtility.SaveFilePanel(
+                "Export Localization Data to JSON",
+                "",
+                $"Localization_Export_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+                "json");
+
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("{");
+
+                for (int i = 0; i < _keys.Count; i++)
+                {
+                    string key = _keys[i];
+                    sb.Append($"  \"{EscapeJsonString(key)}\": {{\n");
+
+                    if (_languageData.TryGetValue(key, out var keyData))
+                    {
+                        var langs = keyData.Keys.ToList();
+                        for (int j = 0; j < langs.Count; j++)
+                        {
+                            string lang = langs[j];
+                            var value = keyData[lang];
+
+                            sb.Append($"    \"{lang}\": ");
+
+                            if (value is List<string> arr)
+                            {
+                                sb.Append("[");
+                                for (int k = 0; k < arr.Count; k++)
+                                {
+                                    sb.Append($"\"{EscapeJsonString(arr[k])}\"");
+                                    if (k < arr.Count - 1) sb.Append(", ");
+                                }
+                                sb.Append("]");
+                            }
+                            else
+                            {
+                                sb.Append($"\"{EscapeJsonString(value?.ToString() ?? "")}\"");
+                            }
+
+                            if (j < langs.Count - 1) sb.Append(",");
+                            sb.Append("\n");
+                        }
+                    }
+
+                    sb.Append("  }");
+                    if (i < _keys.Count - 1) sb.Append(",");
+                    sb.Append("\n");
+                }
+
+                sb.AppendLine("}");
+                File.WriteAllText(path, sb.ToString());
+
+                EditorUtility.DisplayDialog("Export Successful",
+                    $"Exported {_keys.Count} keys across {_languageCodes.Count} languages to:\n{path}", "OK");
+                Debug.Log($"[LocalizationEditor] Exported to JSON: {path}");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Export Failed", $"Failed to export data: {ex.Message}", "OK");
+                Debug.LogError($"[LocalizationEditor] JSON export failed: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Imports localization data from a JSON file.
+        /// Supports both string and array values.
+        /// </summary>
+        private void ImportFromJson()
+        {
+            string path = EditorUtility.OpenFilePanel(
+                "Import Localization Data from JSON",
+                "",
+                "json");
+
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                var importData = ParseLocalizationJson(json);
+
+                if (importData.Count == 0)
+                {
+                    EditorUtility.DisplayDialog("Import Failed", "Invalid or empty JSON file.", "OK");
+                    return;
+                }
+
+                int totalKeys = importData.Count;
+                int totalLangs = importData.Values.SelectMany(d => d.Keys).Distinct().Count();
+
+                bool merge = EditorUtility.DisplayDialog("Import JSON Data",
+                    $"Found {totalKeys} keys across {totalLangs} languages.\n\n" +
+                    "Do you want to merge with existing data?\n\n" +
+                    "Yes = Merge (keep existing keys, add/update imported)\n" +
+                    "No = Replace (clear all existing data)",
+                    "Merge", "Replace");
+
+                if (!merge)
+                {
+                    if (!EditorUtility.DisplayDialog("Confirm Replace",
+                            "This will DELETE all existing language data. Are you sure?", "Yes, Replace All", "Cancel"))
+                    {
+                        return;
+                    }
+
+                    _languageData.Clear();
+                    _keys.Clear();
+                    _languageCodes.Clear();
+                }
+
+                int importedKeys = 0;
+                int importedLangs = 0;
+
+                foreach (var kvp in importData)
+                {
+                    string key = kvp.Key;
+                    var langData = kvp.Value;
+
+                    if (!_languageData.TryGetValue(key, out var keyData))
+                    {
+                        keyData = new Dictionary<string, object>();
+                        _languageData[key] = keyData;
+                        _keys.Add(key);
+                        importedKeys++;
+                    }
+
+                    foreach (var langKvp in langData)
+                    {
+                        string lang = langKvp.Key;
+                        object value = langKvp.Value;
+
+                        if (!_languageCodes.Contains(lang))
+                        {
+                            _languageCodes.Add(lang);
+                            importedLangs++;
+                        }
+
+                        if (value is List<string> list)
+                        {
+                            keyData[lang] = new List<string>(list);
+                        }
+                        else
+                        {
+                            keyData[lang] = value?.ToString() ?? "";
+                        }
+                    }
+                }
+
+                _keys = _keys.Distinct().ToList();
+                _keys.Sort();
+                _languageCodes.Sort();
+
+                _hasUnsavedChanges = true;
+
+                EditorUtility.DisplayDialog("Import Successful",
+                    $"Imported {importedKeys} new keys and {importedLangs} new languages.\n" +
+                    $"Total: {_keys.Count} keys across {_languageCodes.Count} languages.", "OK");
+                Debug.Log($"[LocalizationEditor] Imported from JSON: {path}");
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("Import Failed", $"Failed to import data: {ex.Message}", "OK");
+                Debug.LogError($"[LocalizationEditor] JSON import failed: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Parses JSON supporting both string and array values.
+        /// Returns object which can be string or List<string>.
+        /// </summary>
+        private Dictionary<string, Dictionary<string, object>> ParseLocalizationJson(string json)
+        {
+            var result = new Dictionary<string, Dictionary<string, object>>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            int pos = 0;
+            SkipWhitespace(json, ref pos);
+
+            if (pos >= json.Length || json[pos] != '{')
+                throw new Exception("JSON must start with {");
+
+            pos++;
+            SkipWhitespace(json, ref pos);
+
+            if (pos < json.Length && json[pos] == '}')
+                return result;
+
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length) break;
+
+                if (json[pos] == '}')
+                {
+                    pos++;
+                    break;
+                }
+
+                string key = ParseJsonString(json, ref pos);
+                SkipWhitespace(json, ref pos);
+
+                if (pos >= json.Length || json[pos] != ':')
+                    throw new Exception("Expected ':' after key");
+                pos++;
+
+                SkipWhitespace(json, ref pos);
+
+                if (pos >= json.Length || json[pos] != '{')
+                    throw new Exception("Expected '{' for language object");
+                pos++;
+
+                var langDict = new Dictionary<string, object>();
+                SkipWhitespace(json, ref pos);
+
+                if (pos < json.Length && json[pos] != '}')
+                {
+                    while (pos < json.Length)
+                    {
+                        SkipWhitespace(json, ref pos);
+                        if (pos >= json.Length) break;
+
+                        if (json[pos] == '}')
+                        {
+                            pos++;
+                            break;
+                        }
+
+                        string lang = ParseJsonString(json, ref pos);
+                        SkipWhitespace(json, ref pos);
+
+                        if (pos >= json.Length || json[pos] != ':')
+                            throw new Exception("Expected ':' after language code");
+                        pos++;
+
+                        SkipWhitespace(json, ref pos);
+
+                        object value;
+                        if (pos < json.Length && json[pos] == '[')
+                        {
+                            value = ParseJsonArray(json, ref pos);
+                        }
+                        else
+                        {
+                            value = ParseJsonString(json, ref pos);
+                        }
+                        langDict[lang] = value;
+
+                        SkipWhitespace(json, ref pos);
+                        if (pos < json.Length && json[pos] == ',')
+                        {
+                            pos++;
+                            continue;
+                        }
+                        else if (pos < json.Length && json[pos] == '}')
+                        {
+                            pos++;
+                            break;
+                        }
+                    }
+                }
+                else if (pos < json.Length && json[pos] == '}')
+                {
+                    pos++;
+                }
+
+                result[key] = langDict;
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                {
+                    pos++;
+                    continue;
+                }
+                else if (pos < json.Length && json[pos] == '}')
+                {
+                    pos++;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Parses a JSON array of strings.
+        /// </summary>
+        private List<string> ParseJsonArray(string json, ref int pos)
+        {
+            var result = new List<string>();
+
+            if (pos >= json.Length || json[pos] != '[')
+                throw new Exception("Expected '[' to start array");
+            pos++;
+
+            SkipWhitespace(json, ref pos);
+
+            if (pos < json.Length && json[pos] == ']')
+            {
+                pos++;
+                return result;
+            }
+
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+
+                if (pos >= json.Length)
+                    throw new Exception("Unexpected end of array");
+
+                if (json[pos] == ']')
+                {
+                    pos++;
+                    return result;
+                }
+
+                string value = ParseJsonString(json, ref pos);
+                result.Add(value);
+
+                SkipWhitespace(json, ref pos);
+
+                if (pos < json.Length && json[pos] == ',')
+                {
+                    pos++;
+                    continue;
+                }
+                else if (pos < json.Length && json[pos] == ']')
+                {
+                    pos++;
+                    return result;
+                }
+            }
+
+            throw new Exception("Unterminated array");
+        }
+
+        /// <summary>
+        /// Skips whitespace characters in JSON.
+        /// </summary>
+        private void SkipWhitespace(string json, ref int pos)
+        {
+            while (pos < json.Length && char.IsWhiteSpace(json[pos]))
+                pos++;
+        }
+
+        /// <summary>
+        /// Parses a JSON string value (with quotes and escape sequences).
+        /// </summary>
+        private string ParseJsonString(string json, ref int pos)
+        {
+            SkipWhitespace(json, ref pos);
+
+            if (pos >= json.Length || json[pos] != '"')
+                throw new Exception("Expected string to start with quote");
+
+            pos++;
+            var sb = new System.Text.StringBuilder();
+
+            while (pos < json.Length)
+            {
+                char c = json[pos];
+
+                if (c == '"')
+                {
+                    pos++;
+                    return sb.ToString();
+                }
+
+                if (c == '\\' && pos + 1 < json.Length)
+                {
+                    pos++;
+                    char next = json[pos];
+                    switch (next)
+                    {
+                        case '"': sb.Append('"'); break;
+                        case '\\': sb.Append('\\'); break;
+                        case '/': sb.Append('/'); break;
+                        case 'b': sb.Append('\b'); break;
+                        case 'f': sb.Append('\f'); break;
+                        case 'n': sb.Append('\n'); break;
+                        case 'r': sb.Append('\r'); break;
+                        case 't': sb.Append('\t'); break;
+                        default: sb.Append(next); break;
+                    }
+                    pos++;
+                }
+                else
+                {
+                    sb.Append(c);
+                    pos++;
+                }
+            }
+
+            throw new Exception("Unterminated string");
         }
 
         #endregion
