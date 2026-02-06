@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Linq;
 using TMPro;
+using UnityEngine.UI;
 using UnityEditor.Compilation;
 using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
@@ -1008,12 +1009,18 @@ namespace PicoShot.Localization
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Available Components", EditorStyles.boldLabel);
 
-            var textComponents = _selectedGameObject.GetComponentsInChildren<TMP_Text>(true);
-            var dropdowns = _selectedGameObject.GetComponentsInChildren<TMP_Dropdown>(true);
+            var tmpTexts = _selectedGameObject.GetComponentsInChildren<TMP_Text>(true);
+            var tmpDropdowns = _selectedGameObject.GetComponentsInChildren<TMP_Dropdown>(true);
+            var legacyTexts = _selectedGameObject.GetComponentsInChildren<Text>(true);
+            var legacyDropdowns = _selectedGameObject.GetComponentsInChildren<Dropdown>(true);
+            var textMeshes = _selectedGameObject.GetComponentsInChildren<TextMesh>(true);
 
-            if (textComponents.Length == 0 && dropdowns.Length == 0)
+            int totalComponents = tmpTexts.Length + tmpDropdowns.Length + legacyTexts.Length + legacyDropdowns.Length + textMeshes.Length;
+
+            if (totalComponents == 0)
             {
-                EditorGUILayout.HelpBox("No TextMeshPro components found in the selected GameObject hierarchy.",
+                EditorGUILayout.HelpBox("No text components found in the selected GameObject hierarchy.\n\n" +
+                    "Supported: TMP_Text, TMP_Dropdown, Text (Legacy), Dropdown (Legacy), TextMesh",
                     MessageType.Info);
                 EditorGUILayout.EndVertical();
                 return;
@@ -1021,20 +1028,50 @@ namespace PicoShot.Localization
 
             _componentsScrollPos = EditorGUILayout.BeginScrollView(_componentsScrollPos, GUILayout.Height(300));
 
-            if (textComponents.Length > 0)
+            if (tmpTexts.Length > 0)
             {
-                EditorGUILayout.LabelField("Text Components", EditorStyles.boldLabel);
-                foreach (var text in textComponents)
+                EditorGUILayout.LabelField("TMP Text Components", EditorStyles.boldLabel);
+                foreach (var text in tmpTexts)
                 {
                     DrawComponentSection(text.gameObject, text);
                 }
             }
 
-            if (dropdowns.Length > 0)
+            if (legacyTexts.Length > 0)
             {
                 EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Dropdown Components", EditorStyles.boldLabel);
-                foreach (var dropdown in dropdowns)
+                EditorGUILayout.LabelField("Legacy Text Components", EditorStyles.boldLabel);
+                foreach (var text in legacyTexts)
+                {
+                    DrawComponentSection(text.gameObject, text);
+                }
+            }
+
+            if (textMeshes.Length > 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("TextMesh Components (3D)", EditorStyles.boldLabel);
+                foreach (var textMesh in textMeshes)
+                {
+                    DrawComponentSection(textMesh.gameObject, textMesh);
+                }
+            }
+
+            if (tmpDropdowns.Length > 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("TMP Dropdown Components", EditorStyles.boldLabel);
+                foreach (var dropdown in tmpDropdowns)
+                {
+                    DrawComponentSection(dropdown.gameObject, dropdown);
+                }
+            }
+
+            if (legacyDropdowns.Length > 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Legacy Dropdown Components", EditorStyles.boldLabel);
+                foreach (var dropdown in legacyDropdowns)
                 {
                     DrawComponentSection(dropdown.gameObject, dropdown);
                 }
@@ -1120,7 +1157,7 @@ namespace PicoShot.Localization
             EditorGUILayout.LabelField($"{parentName}: {component.gameObject.name}", EditorStyles.boldLabel);
             EditorGUILayout.LabelField($"Key: {component.TranslationKey}", EditorStyles.miniLabel, GUILayout.Width(200));
 
-            var componentType = component.GetComponent<TMP_Text>() != null ? "Text" : "Dropdown";
+            string componentType = GetComponentTypeName(component);
             EditorGUILayout.LabelField(componentType, EditorStyles.miniLabel, GUILayout.Width(60));
 
             if (GUILayout.Button("Edit", GUILayout.Width(60)))
@@ -1275,18 +1312,52 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
-        /// Gets text from a component (TMP_Text or string property).
+        /// Gets text from a component (TMP_Text, Text, TextMesh, or Dropdown).
         /// </summary>
         private string GetComponentText(Component component)
         {
             if (component is TMP_Text tmpText)
                 return tmpText.text;
 
-            var textProperty = component.GetType().GetProperty("text");
-            if (textProperty != null)
-                return textProperty.GetValue(component)?.ToString() ?? "";
+            if (component is Text legacyText)
+                return legacyText.text;
+
+            if (component is TextMesh textMesh)
+                return textMesh.text;
+
+            if (component is TMP_Dropdown tmpDropdown)
+            {
+                var options = tmpDropdown.options;
+                if (options.Count > 0)
+                    return string.Join(", ", options.Select(o => o.text));
+                return "";
+            }
+
+            if (component is Dropdown legacyDropdown)
+            {
+                var options = legacyDropdown.options;
+                if (options.Count > 0)
+                    return string.Join(", ", options.Select(o => o.text));
+                return "";
+            }
 
             return "";
+        }
+
+        /// <summary>
+        /// Gets a display name for the component type.
+        /// </summary>
+        private string GetComponentTypeName(Component component)
+        {
+            return component switch
+            {
+                TMP_Text => "TMP Text",
+                TMP_Dropdown => "TMP Dropdown",
+                Text => "Legacy Text",
+                Dropdown => "Legacy Dropdown",
+                TextMesh => "TextMesh",
+                _ => "Unknown"
+            };
         }
 
         /// <summary>

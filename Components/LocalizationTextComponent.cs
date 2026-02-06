@@ -4,11 +4,13 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace PicoShot.Localization
 {
     /// <summary>
-    /// Component that binds a TMP_Text or TMP_Dropdown to the localization system.
+    /// Component that binds text components (TMP_Text, TMP_Dropdown, Text, Dropdown, TextMesh) to the localization system.
     /// Automatically updates when language changes.
     /// </summary>
     [AddComponentMenu("UI/Localized Text")]
@@ -82,7 +84,26 @@ namespace PicoShot.Localization
             }
         }
 
-        public bool IsDropdown => _tmpDropdown != null;
+        /// <summary>
+        /// Returns the type of text component attached.
+        /// </summary>
+        public TextComponentType ComponentType
+        {
+            get
+            {
+                if (_tmpDropdown != null) return TextComponentType.TMPDropdown;
+                if (_tmpText != null) return TextComponentType.TMPText;
+                if (_legacyDropdown != null) return TextComponentType.LegacyDropdown;
+                if (_legacyText != null) return TextComponentType.LegacyText;
+                if (_textMesh != null) return TextComponentType.TextMesh;
+                return TextComponentType.None;
+            }
+        }
+
+        /// <summary>
+        /// Checks if this component is attached to a dropdown.
+        /// </summary>
+        public bool IsDropdown => _tmpDropdown != null || _legacyDropdown != null;
 
         #endregion
 
@@ -90,6 +111,10 @@ namespace PicoShot.Localization
 
         private TMP_Text _tmpText;
         private TMP_Dropdown _tmpDropdown;
+        private Text _legacyText;
+        private Dropdown _legacyDropdown;
+        private TextMesh _textMesh;
+
         private string _lastText;
         private bool _isInitialized;
         private readonly List<Func<string, string>> _textProcessors = new();
@@ -120,7 +145,7 @@ namespace PicoShot.Localization
             _textProcessors.Clear();
         }
 
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         private void OnValidate()
         {
             if (Application.isPlaying && _isInitialized)
@@ -131,7 +156,7 @@ namespace PicoShot.Localization
                 };
             }
         }
-        #endif
+#endif
 
         #endregion
 
@@ -143,10 +168,16 @@ namespace PicoShot.Localization
 
             _tmpText = GetComponent<TMP_Text>();
             _tmpDropdown = GetComponent<TMP_Dropdown>();
+            _legacyText = GetComponent<Text>();
+            _legacyDropdown = GetComponent<Dropdown>();
+            _textMesh = GetComponent<TextMesh>();
 
-            if (_tmpText == null && _tmpDropdown == null)
+            if (_tmpText == null && _tmpDropdown == null && 
+                _legacyText == null && _legacyDropdown == null && 
+                _textMesh == null)
             {
-                Debug.LogError($"[LocalizationTextComponent] No TMP_Text or TMP_Dropdown found on {gameObject.name}", this);
+                Debug.LogError($"[LocalizationTextComponent] No supported text component found on {gameObject.name}. " +
+                    "Supported: TMP_Text, TMP_Dropdown, Text (Legacy), Dropdown (Legacy), TextMesh", this);
             }
 
             _isInitialized = true;
@@ -166,7 +197,7 @@ namespace PicoShot.Localization
 
             try
             {
-                if (_tmpDropdown != null)
+                if (IsDropdown)
                 {
                     UpdateDropdown();
                 }
@@ -258,23 +289,30 @@ namespace PicoShot.Localization
 
         private void UpdateTextComponent()
         {
-            if (_tmpText == null) return;
-
             string text = GetTranslatedText();
             text = ApplyProcessors(text);
 
             if (_lastText == text) return;
 
-            _tmpText.text = text;
+            if (_tmpText != null)
+            {
+                _tmpText.text = text;
+            }
+            else if (_legacyText != null)
+            {
+                _legacyText.text = text;
+            }
+            else if (_textMesh != null)
+            {
+                _textMesh.text = text;
+            }
+
             _lastText = text;
-            
             onTextUpdated?.Invoke(text);
         }
 
         private void UpdateDropdown()
         {
-            if (_tmpDropdown == null) return;
-
             var options = LocalizationManager.GetArray(translationKey);
             if (options == null || options.Length == 0)
             {
@@ -294,20 +332,40 @@ namespace PicoShot.Localization
                 options[i] = ApplyProcessors(options[i]);
             }
 
-            int selectedValue = _tmpDropdown.value;
-            _tmpDropdown.ClearOptions();
-            _tmpDropdown.AddOptions(options.ToList());
-
-            if (selectedValue < options.Length)
+            if (_tmpDropdown != null)
             {
-                _tmpDropdown.value = selectedValue;
-            }
-            else if (options.Length > 0)
-            {
-                _tmpDropdown.value = 0;
-            }
+                int selectedValue = _tmpDropdown.value;
+                _tmpDropdown.ClearOptions();
+                _tmpDropdown.AddOptions(options.ToList());
 
-            _tmpDropdown.RefreshShownValue();
+                if (selectedValue < options.Length)
+                {
+                    _tmpDropdown.value = selectedValue;
+                }
+                else if (options.Length > 0)
+                {
+                    _tmpDropdown.value = 0;
+                }
+
+                _tmpDropdown.RefreshShownValue();
+            }
+            else if (_legacyDropdown != null)
+            {
+                int selectedValue = _legacyDropdown.value;
+                _legacyDropdown.ClearOptions();
+                _legacyDropdown.AddOptions(options.ToList());
+
+                if (selectedValue < options.Length)
+                {
+                    _legacyDropdown.value = selectedValue;
+                }
+                else if (options.Length > 0)
+                {
+                    _legacyDropdown.value = 0;
+                }
+
+                _legacyDropdown.RefreshShownValue();
+            }
         }
 
         private string GetTranslatedText()
@@ -338,5 +396,18 @@ namespace PicoShot.Localization
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// Enum representing the type of text component.
+    /// </summary>
+    public enum TextComponentType
+    {
+        None,
+        TMPText,
+        TMPDropdown,
+        LegacyText,
+        LegacyDropdown,
+        TextMesh
     }
 }
