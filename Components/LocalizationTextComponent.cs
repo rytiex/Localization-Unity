@@ -12,7 +12,6 @@ namespace PicoShot.Localization
     /// Automatically updates when language changes.
     /// </summary>
     [AddComponentMenu("UI/Localized Text")]
-    [RequireComponent(typeof(TMP_Text))]
     [DisallowMultipleComponent]
     public class LocalizationTextComponent : MonoBehaviour
     {
