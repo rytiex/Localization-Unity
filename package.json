@@ -1,0 +1,36 @@
+{
+  "name": "com.picoshot.localization",
+  "version": "1.0.0",
+  "displayName": "PicoShot Localization",
+  "description": "A lightweight zero-dependencies, high-performance localization system for Unity with support for multiple languages, RTL text, binary format (BLOC), and DeepL translation integration.",
+  "unity": "2022.3",
+  "documentationUrl": "https://github.com/PicoShot/Localization-Unity/blob/main/README.md",
+  "licensesUrl": "https://github.com/PicoShot/Localization-Unity/blob/main/LICENSE",
+  "keywords": [
+    "localization",
+    "translation",
+    "language",
+    "i18n",
+    "l10n",
+    "rtl",
+    "text"
+  ],
+  "author": {
+    "name": "PicoShot",
+    "email": "dev@picoshot.com",
+    "url": "https://picoshot.net/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PicoShot/Localization-Unity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PicoShot/Localization-Unity/issues"
+  },
+  "category": "Localization",
+  "dependencies": {
+    "com.unity.textmeshpro": "3.0.0"
+  },
+  "samples": [],
+  "hideInEditor": false
+}
