@@ -1453,13 +1453,6 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("File Settings", EditorStyles.boldLabel);
-            EditorGUILayout.TextField("Languages Directory:", "{StreamingAssets}/" + LocalizationManager.LanguagesDirectory,
-                EditorStyles.textField);
-            EditorGUILayout.LabelField("File Extension:", ".bloc", EditorStyles.textField);
-
-            EditorGUILayout.Space();
-
             EditorGUILayout.LabelField("File Operations", EditorStyles.boldLabel);
             EditorGUILayout.BeginHorizontal();
 
@@ -1482,7 +1475,6 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox($"Languages Path: {LocalizationManager.LanguagesPath}", MessageType.Info);
-            EditorGUILayout.HelpBox($"Directory Exists: {Directory.Exists(LocalizationManager.LanguagesPath)}", MessageType.Info);
 
             EditorGUILayout.EndVertical();
         }

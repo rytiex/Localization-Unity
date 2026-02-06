@@ -76,6 +76,8 @@ namespace PicoShot.Localization
         {
             if (_isInitialized) return;
 
+            _isInitialized = true;
+
             try
             {
                 ScanAvailableLanguages();
@@ -85,12 +87,12 @@ namespace PicoShot.Localization
                     string error = $"[LocalizationManager] No language files found in: {LanguagesPath}";
                     Debug.LogError(error);
                     OnLanguageLoadError?.Invoke(error);
+                    _isInitialized = false;
                     return;
                 }
 
                 SetLanguage(DetectSystemLanguage(), useFallback: false);
 
-                _isInitialized = true;
                 Application.quitting += Dispose;
 
                 OnLanguageChanged?.Invoke();
@@ -100,6 +102,7 @@ namespace PicoShot.Localization
                 string error = $"[LocalizationManager] Initialization failed: {ex.Message}";
                 Debug.LogError(error);
                 OnLanguageLoadError?.Invoke(error);
+                _isInitialized = false;
             }
         }
 
