@@ -28,7 +28,16 @@ namespace PicoShot.Localization
         private bool _pendingDelete;
         private const float _keyItemHeight = 22f;
         private const string DeeplApiUrl = "https://api-free.deepl.com/v2/translate";
-        private const string DeeplApiKey = "";
+        private const string DeeplApiKeyPref = "PicoShot_Localization_DeepLApiKey";
+
+        /// <summary>
+        /// Gets or sets the DeepL API key from EditorPrefs (not included in builds).
+        /// </summary>
+        private string DeeplApiKey
+        {
+            get => EditorPrefs.GetString(DeeplApiKeyPref, "");
+            set => EditorPrefs.SetString(DeeplApiKeyPref, value);
+        }
         private string _keySearchFilter = "";
         private string _newKey = "";
         private string _languageFilter = "";
@@ -1488,7 +1497,23 @@ namespace PicoShot.Localization
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("DeepL API Settings", EditorStyles.boldLabel);
-            EditorGUILayout.TextField("API Key:", DeeplApiKey, EditorStyles.textField);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("API Key:", GUILayout.Width(70));
+            string newApiKey = EditorGUILayout.TextField(DeeplApiKey);
+            if (newApiKey != DeeplApiKey)
+            {
+                DeeplApiKey = newApiKey;
+            }
+
+            GUI.enabled = !string.IsNullOrEmpty(DeeplApiKey);
+            if (GUILayout.Button("Clear", GUILayout.Width(60)))
+            {
+                DeeplApiKey = "";
+                GUI.FocusControl(null);
+            }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
 
