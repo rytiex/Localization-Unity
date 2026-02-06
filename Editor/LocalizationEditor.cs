@@ -1729,23 +1729,23 @@ namespace PicoShot.Localization
         {
             EditorGUILayout.BeginVertical("box");
 
+            var firstValue = GetFirstValue(_languageData[key]);
+            var array = firstValue as List<string> ?? new List<string>();
+            DrawArrayElements(key, array);
+
+            EditorGUILayout.Space(5);
+
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Add New Element", GUILayout.Width(120)))
+            if (GUILayout.Button("Add New Element", GUILayout.Width(120), GUILayout.Height(25)))
             {
                 AddArrayElement(key);
             }
 
-            if (GUILayout.Button("Clear Empty Elements", GUILayout.Width(140)))
+            if (GUILayout.Button("Clear Empty Elements", GUILayout.Width(140), GUILayout.Height(25)))
             {
                 ClearEmptyArrayElements(key);
             }
             EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.Space(5);
-
-            var firstValue = GetFirstValue(_languageData[key]);
-            var array = firstValue as List<string> ?? new List<string>();
-            DrawArrayElements(key, array);
 
             EditorGUILayout.EndVertical();
         }
