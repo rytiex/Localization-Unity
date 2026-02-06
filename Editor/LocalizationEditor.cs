@@ -27,11 +27,21 @@ namespace PicoShot.Localization
         private bool _sortKeysByName;
         private bool _pendingDelete;
         private const float _keyItemHeight = 22f;
-        private const string DeeplApiUrl = "https://api-free.deepl.com/v2/translate";
+        private const string DefaultDeeplApiUrl = "https://api-free.deepl.com/v2/translate";
+        private const string DeeplApiUrlPref = "PicoShot_Localization_DeepLApiUrl";
         private const string DeeplApiKeyPref = "PicoShot_Localization_DeepLApiKey";
         private const string DeeplContextPref = "PicoShot_Localization_DeepLContext";
         private const int DeeplRequestDelayMs = 350;
         private const string DefaultDeepLContext = "This is text for a game locale. The translation should be concise and suitable for game UI.";
+
+        /// <summary>
+        /// Gets or sets the DeepL API URL from EditorPrefs
+        /// </summary>
+        private string DeeplApiUrl
+        {
+            get => EditorPrefs.GetString(DeeplApiUrlPref, DefaultDeeplApiUrl);
+            set => EditorPrefs.SetString(DeeplApiUrlPref, value);
+        }
 
         /// <summary>
         /// Gets or sets the DeepL API key from EditorPrefs
@@ -1479,6 +1489,23 @@ namespace PicoShot.Localization
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("DeepL API Settings", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("API URL:", GUILayout.Width(70));
+            string newApiUrl = EditorGUILayout.TextField(DeeplApiUrl);
+            if (newApiUrl != DeeplApiUrl)
+            {
+                DeeplApiUrl = newApiUrl;
+            }
+
+            GUI.enabled = DeeplApiUrl != DefaultDeeplApiUrl;
+            if (GUILayout.Button("Reset", GUILayout.Width(60)))
+            {
+                DeeplApiUrl = DefaultDeeplApiUrl;
+                GUI.FocusControl(null);
+            }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("API Key:", GUILayout.Width(70));
