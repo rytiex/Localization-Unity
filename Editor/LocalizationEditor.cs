@@ -431,7 +431,7 @@ namespace PicoShot.Localization
 
             if (string.IsNullOrEmpty(currentHint))
             {
-                EditorGUILayout.LabelField("Example: 'view' should be translated as verb not noun",
+                EditorGUILayout.LabelField($"Example: '{key}' should be translated as verb not noun",
                     EditorStyles.miniLabel);
             }
 
@@ -1081,7 +1081,13 @@ namespace PicoShot.Localization
             {
                 if (GUILayout.Button("Add Language Support", GUILayout.Width(150)))
                 {
+                    string suggestedKey = GetBestMatchingKey(component);
                     langComponent = Undo.AddComponent<LocalizationTextComponent>(go);
+                    if (!string.IsNullOrEmpty(suggestedKey))
+                    {
+                        langComponent.TranslationKey = suggestedKey;
+                        EditorUtility.SetDirty(langComponent);
+                    }
                 }
             }
             else
@@ -1094,12 +1100,204 @@ namespace PicoShot.Localization
 
             EditorGUILayout.EndHorizontal();
 
-            if (langComponent != null)
+            if (langComponent == null)
+            {
+                DrawSuggestedKeysForComponent(go, component);
+            }
+            else
             {
                 DrawComponentKeySelector(langComponent);
+
+                if (string.IsNullOrEmpty(langComponent.TranslationKey))
+                {
+                    DrawSuggestedKeys(langComponent, component);
+                }
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// Gets the single best matching key for a component, or null if no good match.
+        /// </summary>
+        private string GetBestMatchingKey(Component component)
+        {
+            string currentText = GetComponentText(component);
+            if (string.IsNullOrWhiteSpace(currentText)) return null;
+
+            var suggestions = FindBestMatchingKeys(currentText, 1);
+            return suggestions.Count > 0 && suggestions[0].score >= 70 ? suggestions[0].key : null;
+        }
+
+        /// <summary>
+        /// Shows suggested keys for a component that doesn't have Language Support yet.
+        /// </summary>
+        private void DrawSuggestedKeysForComponent(GameObject go, Component component)
+        {
+            string currentText = GetComponentText(component);
+            if (string.IsNullOrWhiteSpace(currentText)) return;
+
+            var suggestions = FindBestMatchingKeys(currentText, 5);
+            if (suggestions.Count == 0) return;
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Suggested Keys:", EditorStyles.miniBoldLabel);
+
+            foreach (var (key, score) in suggestions)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"  {key}", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
+                EditorGUILayout.LabelField($"{score:F0}% match", EditorStyles.miniLabel, GUILayout.Width(70));
+
+                if (GUILayout.Button("Assign", GUILayout.Width(60)))
+                {
+                    var langComponent = Undo.AddComponent<LocalizationTextComponent>(go);
+                    langComponent.TranslationKey = key;
+                    EditorUtility.SetDirty(langComponent);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// Shows suggested keys based on similarity between current text and key values.
+        /// </summary>
+        private void DrawSuggestedKeys(LocalizationTextComponent langComponent, Component component)
+        {
+            string currentText = GetComponentText(component);
+            if (string.IsNullOrWhiteSpace(currentText)) return;
+
+            var suggestions = FindBestMatchingKeys(currentText, 5);
+            if (suggestions.Count == 0) return;
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Suggested Keys (based on current text):", EditorStyles.miniBoldLabel);
+
+            foreach (var (key, score) in suggestions)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField($"{key}", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
+                EditorGUILayout.LabelField($"{score:F0}% match", EditorStyles.miniLabel, GUILayout.Width(60));
+
+                if (GUILayout.Button("Assign", GUILayout.Width(60)))
+                {
+                    Undo.RecordObject(langComponent, "Assign Translation Key");
+                    langComponent.TranslationKey = key;
+                    EditorUtility.SetDirty(langComponent);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// Gets text from a component (TMP_Text or string property).
+        /// </summary>
+        private string GetComponentText(Component component)
+        {
+            if (component is TMP_Text tmpText)
+                return tmpText.text;
+
+            var textProperty = component.GetType().GetProperty("text");
+            if (textProperty != null)
+                return textProperty.GetValue(component)?.ToString() ?? "";
+
+            return "";
+        }
+
+        /// <summary>
+        /// Finds best matching keys using fuzzy string comparison.
+        /// </summary>
+        private List<(string key, float score)> FindBestMatchingKeys(string text, int maxResults)
+        {
+            var results = new List<(string key, float score)>();
+            string normalizedText = NormalizeForComparison(text);
+
+            foreach (var key in _keys)
+            {
+                if (!_languageData.TryGetValue(key, out var keyData)) continue;
+
+                float bestScore = 0;
+                foreach (var langValue in keyData.Values)
+                {
+                    string valueStr = langValue?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(valueStr)) continue;
+
+                    string normalizedValue = NormalizeForComparison(valueStr);
+                    float score = CalculateSimilarity(normalizedText, normalizedValue);
+                    if (score > bestScore) bestScore = score;
+                }
+
+                if (bestScore > 0.3f)
+                {
+                    results.Add((key, bestScore * 100));
+                }
+            }
+
+            return results.OrderByDescending(r => r.score).Take(maxResults).ToList();
+        }
+
+        /// <summary>
+        /// Normalizes text for comparison (lowercase, remove extra spaces).
+        /// </summary>
+        private string NormalizeForComparison(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            return string.Join(" ", text.ToLowerInvariant()
+                .Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        /// <summary>
+        /// Calculates similarity between two strings (0-1 scale).
+        /// Uses Levenshtein distance combined with substring matching.
+        /// </summary>
+        private float CalculateSimilarity(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0;
+            if (a == b) return 1;
+
+            int maxLen = Math.Max(a.Length, b.Length);
+            if (maxLen == 0) return 1;
+
+            int distance = LevenshteinDistance(a, b);
+            float levenshteinScore = 1f - (float)distance / maxLen;
+
+            bool containsA = a.Contains(b) || b.Contains(a);
+            float containmentBonus = containsA ? 0.2f : 0;
+
+            return Math.Min(1f, levenshteinScore + containmentBonus);
+        }
+
+        /// <summary>
+        /// Calculates Levenshtein distance between two strings.
+        /// </summary>
+        private int LevenshteinDistance(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
+            if (string.IsNullOrEmpty(b)) return a.Length;
+
+            int[,] matrix = new int[a.Length + 1, b.Length + 1];
+
+            for (int i = 0; i <= a.Length; i++) matrix[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) matrix[0, j] = j;
+
+            for (int i = 1; i <= a.Length; i++)
+            {
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+                    matrix[i, j] = Math.Min(
+                        Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+                        matrix[i - 1, j - 1] + cost);
+                }
+            }
+
+            return matrix[a.Length, b.Length];
         }
 
         private void DrawComponentKeySelector(LocalizationTextComponent langComponent)
@@ -1511,7 +1709,7 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("Protection Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Protection Settings (experimental)", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Protection Mode:", GUILayout.Width(120));
