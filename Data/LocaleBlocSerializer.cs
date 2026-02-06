@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
@@ -8,17 +9,27 @@ namespace PicoShot.Localization.Data
 {
     /// <summary>
     /// BLOC (Binary Localization Container) format serializer.
-    /// Optimized binary format with deduplicated strings and compact array storage.
+    /// Optimized binary format with optional compression and string deduplication.
     /// </summary>
     public static class LocaleBlocSerializer
     {
         private static readonly byte[] Magic = { 0x42, 0x4C, 0x4F, 0x43 }; // "BLOC"
         private const int Version = 1;
 
+        // Flags
+        private const ushort FlagCompressed = 0x01;
+        private const ushort FlagReserved = 0xFE; // Reserved for future use
+
         /// <summary>
-        /// Serializes locale data to BLOC format.
+        /// Compression level for BLOC files. Set to Optimal for best compression,
+        /// Fastest for quicker saves, or NoCompression to disable.
         /// </summary>
-        public static byte[] Serialize(LocaleData data)
+        public static CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Optimal;
+
+        /// <summary>
+        /// Serializes locale data to BLOC format with optional compression.
+        /// </summary>
+        public static byte[] Serialize(LocaleData data, bool compress = true)
         {
             if (data?.Translations == null)
                 throw new ArgumentNullException(nameof(data));
@@ -28,31 +39,55 @@ namespace PicoShot.Localization.Data
             var stringToId = BuildStringToIdMap(stringPool);
 
             // Calculate sizes
-            int headerSize = 24;
             int entryTableSize = CalculateEntryTableSize(data.Translations);
             int stringPoolSize = CalculateStringPoolSize(stringPool);
-            int footerSize = 4;
+            int uncompressedSize = 24 + entryTableSize + stringPoolSize + 4; // header + table + pool + footer
 
-            int stringPoolOffset = headerSize + entryTableSize;
+            byte[] uncompressedData;
+            using (var ms = new MemoryStream(uncompressedSize))
+            using (var writer = new BinaryWriter(ms, Encoding.UTF8))
+            {
+                int stringPoolOffset = 24 + entryTableSize;
 
-            using var ms = new MemoryStream(headerSize + entryTableSize + stringPoolSize + footerSize);
-            using var writer = new BinaryWriter(ms, Encoding.UTF8);
+                WriteHeader(writer, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
+                    (uint)stringPoolOffset, false);
 
-            // Write header
-            WriteHeader(writer, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
-                (uint)stringPoolOffset);
+                WriteEntryTable(writer, data.Translations, stringToId);
 
-            // Write entry table
-            WriteEntryTable(writer, data.Translations, stringToId);
+                // Write string pool
+                WriteStringPool(writer, stringPool);
 
-            // Write string pool
-            WriteStringPool(writer, stringPool);
+                uncompressedData = ms.ToArray();
+                uint crc = ComputeCrc32(uncompressedData, 0, uncompressedData.Length);
+                
+                ms.Position = 0;
+                writer.Write(uncompressedData, 0, uncompressedData.Length);
+                writer.Write(crc);
+                
+                uncompressedData = ms.ToArray();
+            }
 
-            // Write footer with checksum
-            uint checksum = ComputeCrc32(ms.GetBuffer(), 0, (int)ms.Position);
-            writer.Write(checksum);
+            if (compress && CompressionLevel != CompressionLevel.NoCompression)
+            {
+                byte[] compressed = CompressData(uncompressedData);
+                
+                if (compressed.Length < uncompressedData.Length - 4)
+                {
+                    using var resultMs = new MemoryStream(8 + compressed.Length);
+                    using var resultWriter = new BinaryWriter(resultMs, Encoding.UTF8);
+                    
+                    WriteHeader(resultWriter, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
+                        (uint)uncompressedData.Length, true);
+                    
+                    resultWriter.Write(uncompressedData.Length);
+                    
+                    resultWriter.Write(compressed);
+                    
+                    return resultMs.ToArray();
+                }
+            }
 
-            return ms.ToArray();
+            return uncompressedData;
         }
 
         /// <summary>
@@ -68,7 +103,29 @@ namespace PicoShot.Localization.Data
                 data[2] != Magic[2] || data[3] != Magic[3])
                 throw new InvalidDataException("Invalid BLOC magic");
 
-            using var ms = new MemoryStream(data);
+            // Check compression flag
+            ushort flags = BitConverter.ToUInt16(data, 6);
+            bool isCompressed = (flags & FlagCompressed) != 0;
+
+            byte[] uncompressedData;
+            
+            if (isCompressed)
+            {
+                if (data.Length < 32)
+                    throw new InvalidDataException("Compressed data too short");
+                
+                int uncompressedSize = BitConverter.ToInt32(data, 24);
+                if (uncompressedSize < 0 || uncompressedSize > 100_000_000) // 100MB sanity check
+                    throw new InvalidDataException("Invalid uncompressed size");
+                
+                uncompressedData = DecompressData(data, 28, data.Length - 28, uncompressedSize);
+            }
+            else
+            {
+                uncompressedData = data;
+            }
+
+            using var ms = new MemoryStream(uncompressedData);
             using var reader = new BinaryReader(ms, Encoding.UTF8);
 
             // Read header
@@ -104,26 +161,61 @@ namespace PicoShot.Localization.Data
         /// <summary>
         /// Saves locale data to a BLOC file.
         /// </summary>
-        public static void SaveToFile(string path, LocaleData data)
+        public static void SaveToFile(string path, LocaleData data, bool compress = true)
         {
             string directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
 
-            byte[] bytes = Serialize(data);
+            byte[] bytes = Serialize(data, compress);
             File.WriteAllBytes(path, bytes);
         }
+
+        #region Compression
+
+        private static byte[] CompressData(byte[] data)
+        {
+            using var outputMs = new MemoryStream();
+            using (var deflateStream = new DeflateStream(outputMs, CompressionLevel, true))
+            {
+                deflateStream.Write(data, 0, data.Length);
+            }
+            return outputMs.ToArray();
+        }
+
+        private static byte[] DecompressData(byte[] compressedData, int offset, int count, int uncompressedSize)
+        {
+            byte[] result = new byte[uncompressedSize];
+            
+            using var inputMs = new MemoryStream(compressedData, offset, count);
+            using var deflateStream = new DeflateStream(inputMs, CompressionMode.Decompress);
+            
+            int totalRead = 0;
+            while (totalRead < uncompressedSize)
+            {
+                int read = deflateStream.Read(result, totalRead, uncompressedSize - totalRead);
+                if (read == 0)
+                    throw new InvalidDataException("Decompression incomplete");
+                totalRead += read;
+            }
+            
+            return result;
+        }
+
+        #endregion
 
         #region Header (24 bytes)
 
         private static void WriteHeader(BinaryWriter writer, string languageCode,
-            uint entryCount, uint stringCount, uint stringPoolOffset)
+            uint entryCount, uint stringCount, uint stringPoolOffset, bool compressed)
         {
+            ushort flags = compressed ? FlagCompressed : (ushort)0;
+            
             writer.Write(Magic);                          // 0-3: Magic
             writer.Write((ushort)Version);                // 4-5: Version
-            writer.Write((ushort)0);                      // 6-7: Flags (reserved)
+            writer.Write(flags);                          // 6-7: Flags
 
-            // Language code (4 bytes, space-padded ASCII)
+            // Language code (4 bytes, null-padded ASCII)
             byte[] langBytes = new byte[4];
             byte[] inputBytes = Encoding.ASCII.GetBytes(languageCode ?? "en");
             int copyLen = Math.Min(inputBytes.Length, 4);
@@ -132,7 +224,7 @@ namespace PicoShot.Localization.Data
 
             writer.Write(entryCount);                     // 12-15: Entry count
             writer.Write(stringCount);                    // 16-19: String count
-            writer.Write(stringPoolOffset);               // 20-23: String pool offset
+            writer.Write(stringPoolOffset);               // 20-23: String pool offset (or uncompressed size if compressed)
         }
 
         private static (ushort Version, string LanguageCode, uint EntryCount, 

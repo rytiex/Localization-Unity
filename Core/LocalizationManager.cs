@@ -577,9 +577,9 @@ namespace PicoShot.Localization
         /// <summary>
         /// Saves locale data to file (for editor use).
         /// </summary>
-        public static void SaveLocaleToFile(string path, LocaleData data)
+        public static void SaveLocaleToFile(string path, LocaleData data, bool compress = true)
         {
-            LocaleBlocSerializer.SaveToFile(path, data);
+            LocaleBlocSerializer.SaveToFile(path, data, compress);
         }
 
         /// <summary>
