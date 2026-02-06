@@ -437,36 +437,10 @@ namespace PicoShot.Localization
             menu.AddItem(new GUIContent("Translate with DeepL"), false,
                 () => { _ = TranslateAndFill(_selectedKey); });
 
-            menu.AddItem(new GUIContent("Copy AI Translate Prompt"), false, CopyAiTranslatePrompt);
+            menu.AddItem(new GUIContent("Translate with Gemini (soon)"), false, null);
 
             menu.ShowAsContext();
         }
-
-        private void CopyAiTranslatePrompt()
-        {
-            if (string.IsNullOrEmpty(_selectedKey) || !_languageData.TryGetValue(_selectedKey, out var keyData))
-            {
-                ShowNotification(new GUIContent("No key selected or data not found."));
-                return;
-            }
-
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("Please translate the following language key data from English to all other languages.");
-            sb.AppendLine("Only fill in the fields that are empty (leave existing translations unchanged).");
-            sb.AppendLine("Return data in format: LanguageCode: Translation");
-            sb.AppendLine();
-            sb.AppendLine($"Key: {_selectedKey}");
-            sb.AppendLine();
-
-            foreach (var kvp in keyData)
-            {
-                sb.AppendLine($"{kvp.Key}: {kvp.Value}");
-            }
-
-            EditorGUIUtility.systemCopyBuffer = sb.ToString();
-            ShowNotification(new GUIContent("Translation prompt copied to clipboard!"));
-        }
-
 
         private void DrawKeysListPanel()
         {
@@ -2206,50 +2180,85 @@ namespace PicoShot.Localization
             string deeplSourceLang = LanguageDefinitions.ToDeepLCode(sourceLang);
             string deeplTargetLang = LanguageDefinitions.ToDeepLCode(targetLang);
 
-            var content = new FormUrlEncodedContent(new[]
+            var requestBody = new DeepLTranslateRequest
             {
-                new KeyValuePair<string, string>("auth_key", DeeplApiKey),
-                new KeyValuePair<string, string>("text", text),
-                new KeyValuePair<string, string>("source_lang", deeplSourceLang),
-                new KeyValuePair<string, string>("target_lang", deeplTargetLang)
-            });
+                text = new[] { text },
+                source_lang = deeplSourceLang,
+                target_lang = deeplTargetLang
+            };
+
+            string jsonBody = JsonUtility.ToJson(requestBody);
+            var content = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
+
+            var request = new HttpRequestMessage(HttpMethod.Post, DeeplApiUrl);
+            request.Content = content;
+            request.Headers.Add("Authorization", $"DeepL-Auth-Key {DeeplApiKey}");
 
             try
             {
-                var response = await _httpClient.PostAsync(DeeplApiUrl, content);
+                var response = await _httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();
 
                 var responseJson = await response.Content.ReadAsStringAsync();
 
                 string translated = ParseDeepLResponse(responseJson);
-                return translated ?? text;
+                return translated ?? string.Empty;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"DeepL translation failed: {ex.Message}");
-                return text;
+                return string.Empty;
             }
         }
 
+        /// <summary>
+        /// Parses DeepL JSON response to extract translated text.
+        /// </summary>
         private string ParseDeepLResponse(string json)
         {
-            int textIndex = json.IndexOf("\"text\":");
-            if (textIndex < 0) return null;
+            try
+            {
+                var wrapper = JsonUtility.FromJson<DeepLResponseWrapper>(json);
+                if (wrapper?.translations != null && wrapper.translations.Length > 0)
+                {
+                    return wrapper.translations[0].text;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to parse DeepL response: {ex.Message}");
+            }
+            return null;
+        }
 
-            int quoteStart = json.IndexOf('"', textIndex + 7);
-            if (quoteStart < 0) return null;
+        /// <summary>
+        /// Serializable wrapper for DeepL API response.
+        /// </summary>
+        [Serializable]
+        private class DeepLResponseWrapper
+        {
+            public DeepLTranslation[] translations;
+        }
 
-            int quoteEnd = json.IndexOf('"', quoteStart + 1);
-            if (quoteEnd < 0) return null;
+        /// <summary>
+        /// Single translation entry in DeepL response.
+        /// </summary>
+        [Serializable]
+        private class DeepLTranslation
+        {
+            public string detected_source_language;
+            public string text;
+        }
 
-            string escaped = json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
-
-            return escaped
-                .Replace("\\n", "\n")
-                .Replace("\\r", "\r")
-                .Replace("\\t", "\t")
-                .Replace("\\\"", "\"")
-                .Replace("\\\\", "\\");
+        /// <summary>
+        /// Request body for DeepL translate API.
+        /// </summary>
+        [Serializable]
+        private class DeepLTranslateRequest
+        {
+            public string[] text;
+            public string source_lang;
+            public string target_lang;
         }
 
         #endregion
