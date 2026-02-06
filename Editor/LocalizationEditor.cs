@@ -2835,6 +2835,22 @@ namespace PicoShot.Localization
             if (!_languageData.TryGetValue(key, out var keyData)) return;
 
             string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
+
+            if (IsArrayKey(keyData))
+            {
+                await TranslateAndFillArray(key, keyData, defaultLang);
+            }
+            else
+            {
+                await TranslateAndFillString(key, keyData, defaultLang);
+            }
+        }
+
+        /// <summary>
+        /// Translates a string value for the given key.
+        /// </summary>
+        private async Task TranslateAndFillString(string key, Dictionary<string, object> keyData, string defaultLang)
+        {
             string sourceText = null;
             string sourceLang = defaultLang;
 
@@ -2884,6 +2900,108 @@ namespace PicoShot.Localization
                     Debug.LogError($"Translation error for {lang}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Translates array elements for the given key.
+        /// Translates element by element, language by language to avoid API rate limits.
+        /// </summary>
+        private async Task TranslateAndFillArray(string key, Dictionary<string, object> keyData, string defaultLang)
+        {
+            List<string> sourceArray = null;
+            string sourceLang = defaultLang;
+
+            if (keyData.TryGetValue(defaultLang, out var defaultValue))
+            {
+                sourceArray = ConvertToList(defaultValue);
+            }
+
+            if (sourceArray == null || sourceArray.Count == 0 || sourceArray.All(string.IsNullOrWhiteSpace))
+            {
+                foreach (var kvp in keyData)
+                {
+                    var list = ConvertToList(kvp.Value);
+                    if (list != null && list.Count > 0 && list.Any(s => !string.IsNullOrWhiteSpace(s)))
+                    {
+                        sourceArray = list;
+                        sourceLang = kvp.Key;
+                        break;
+                    }
+                }
+            }
+
+            if (sourceArray == null || sourceArray.Count == 0 || sourceArray.All(string.IsNullOrWhiteSpace))
+            {
+                Debug.LogWarning($"The source array is empty for key '{key}', source text must be set to translate.");
+                return;
+            }
+
+            string keyHint = _selectedKey == key ? _currentKeyHint : "";
+            var targetLanguages = _languageCodes.Where(l => l != sourceLang).ToList();
+
+            var translations = new Dictionary<string, List<string>>();
+            foreach (var lang in targetLanguages)
+            {
+                var existingArray = ConvertToList(keyData[lang]);
+                if (existingArray != null && existingArray.Count > 0 && existingArray.Any(s => !string.IsNullOrWhiteSpace(s)))
+                {
+                    translations[lang] = existingArray;
+                }
+                else
+                {
+                    translations[lang] = new List<string>(new string[sourceArray.Count]);
+                }
+            }
+
+            for (int i = 0; i < sourceArray.Count; i++)
+            {
+                string sourceText = sourceArray[i];
+
+                if (string.IsNullOrWhiteSpace(sourceText))
+                {
+                    foreach (var lang in targetLanguages)
+                    {
+                        translations[lang][i] = sourceText;
+                    }
+                    continue;
+                }
+
+                foreach (var lang in targetLanguages)
+                {
+                    if (!string.IsNullOrWhiteSpace(translations[lang][i]))
+                        continue;
+
+                    try
+                    {
+                        var translated = await TranslateText(sourceText, sourceLang, lang, keyHint);
+                        translations[lang][i] = !string.IsNullOrEmpty(translated) ? translated : sourceText;
+                        await Task.Delay(DeeplRequestDelayMs);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Translation error for {lang}, element {i}: {ex.Message}");
+                        translations[lang][i] = sourceText;
+                    }
+                }
+
+                _hasUnsavedChanges = true;
+                Repaint();
+            }
+
+            foreach (var lang in targetLanguages)
+            {
+                keyData[lang] = translations[lang];
+            }
+        }
+
+        /// <summary>
+        /// Converts an object value to List<string> if it's an array type.
+        /// </summary>
+        private List<string> ConvertToList(object value)
+        {
+            if (value is List<string> list) return list;
+            if (value is string[] arr) return arr.ToList();
+            return null;
         }
 
         private async Task<string> TranslateText(string text, string sourceLang, string targetLang, string keyHint = "")
