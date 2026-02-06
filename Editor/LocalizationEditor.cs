@@ -290,6 +290,14 @@ namespace PicoShot.Localization
                     }
                     break;
 
+                case KeyCode.C:
+                    if (ctrlPressed)
+                    {
+                        CopyKeyNameToClipboard();
+                        Event.current.Use();
+                    }
+                    break;
+
                 case KeyCode.Escape:
                     _selectedKey = null;
                     Event.current.Use();
@@ -497,6 +505,9 @@ namespace PicoShot.Localization
             if (GUILayout.Button("Translation Options", GUILayout.Width(120)))
                 ShowTranslationOptionsMenu();
 
+            if (GUILayout.Button("Copy Key", GUILayout.Width(80)))
+                ShowCopyKeyMenu();
+
             if (GUILayout.Button("Clear", GUILayout.Width(80)))
                 ClearKeyData(_selectedKey);
 
@@ -516,6 +527,63 @@ namespace PicoShot.Localization
             menu.AddItem(new GUIContent("Translate with Gemini (soon)"), false, null);
 
             menu.ShowAsContext();
+        }
+
+        /// <summary>
+        /// Shows the copy key menu with options to copy key name or code snippets.
+        /// </summary>
+        private void ShowCopyKeyMenu()
+        {
+            GenericMenu menu = new GenericMenu();
+
+            menu.AddItem(new GUIContent("Copy Key Name"), false, () =>
+            {
+                CopyKeyNameToClipboard();
+            });
+
+            menu.AddItem(new GUIContent("Copy with GetText()"), false, () =>
+            {
+                CopyWithGetText();
+            });
+
+            menu.AddItem(new GUIContent("Copy with GetArray()"), false, () =>
+            {
+                CopyWithGetArray();
+            });
+
+            menu.ShowAsContext();
+        }
+
+        /// <summary>
+        /// Copies the selected key name to the clipboard.
+        /// </summary>
+        private void CopyKeyNameToClipboard()
+        {
+            if (string.IsNullOrEmpty(_selectedKey)) return;
+            EditorGUIUtility.systemCopyBuffer = _selectedKey;
+            ShowNotification(new GUIContent($"Key '{_selectedKey}' copied to clipboard!"));
+        }
+
+        /// <summary>
+        /// Copies the GetText code snippet for the selected key to the clipboard.
+        /// </summary>
+        private void CopyWithGetText()
+        {
+            if (string.IsNullOrEmpty(_selectedKey)) return;
+            string code = $"LocalizationManager.GetText(\"{_selectedKey}\")";
+            EditorGUIUtility.systemCopyBuffer = code;
+            ShowNotification(new GUIContent("GetText() snippet copied!"));
+        }
+
+        /// <summary>
+        /// Copies the GetArray code snippet for the selected key to the clipboard.
+        /// </summary>
+        private void CopyWithGetArray()
+        {
+            if (string.IsNullOrEmpty(_selectedKey)) return;
+            string code = $"LocalizationManager.GetArray(\"{_selectedKey}\")";
+            EditorGUIUtility.systemCopyBuffer = code;
+            ShowNotification(new GUIContent("GetArray() snippet copied!"));
         }
 
         private void DrawKeysListPanel()
