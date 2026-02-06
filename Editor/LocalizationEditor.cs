@@ -33,14 +33,15 @@ namespace PicoShot.Localization
         private const string DeeplContextPref = "PicoShot_Localization_DeepLContext";
         private const int DeeplRequestDelayMs = 350;
         private const string DefaultDeepLContext = "This is text for a game locale. The translation should be concise and suitable for game UI.";
+        private const string KeyHintPrefPrefix = "PicoShot_Localization_KeyHint_";
 
         /// <summary>
-        /// Gets or sets the DeepL API URL from EditorPrefs
+        /// Gets or sets the DeepL API URL from PlayerPrefs
         /// </summary>
         private string DeeplApiUrl
         {
-            get => EditorPrefs.GetString(DeeplApiUrlPref, DefaultDeeplApiUrl);
-            set => EditorPrefs.SetString(DeeplApiUrlPref, value);
+            get => PlayerPrefs.GetString(DeeplApiUrlPref, DefaultDeeplApiUrl);
+            set => PlayerPrefs.SetString(DeeplApiUrlPref, value);
         }
 
         /// <summary>
@@ -53,12 +54,28 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
-        /// Gets or sets the DeepL context from EditorPrefs for improving translation quality
+        /// Gets or sets the DeepL context for improving translation quality
         /// </summary>
         private string DeeplContext
         {
-            get => EditorPrefs.GetString(DeeplContextPref, DefaultDeepLContext);
-            set => EditorPrefs.SetString(DeeplContextPref, value);
+            get => PlayerPrefs.GetString(DeeplContextPref, DefaultDeepLContext);
+            set => PlayerPrefs.SetString(DeeplContextPref, value);
+        }
+
+        /// <summary>
+        /// Gets the translation hint for a specific
+        /// </summary>
+        private string GetKeyTranslationHint(string key)
+        {
+            return PlayerPrefs.GetString(KeyHintPrefPrefix + key, "");
+        }
+
+        /// <summary>
+        /// Sets the translation hint for a specific key in PlayerPrefs
+        /// </summary>
+        private void SetKeyTranslationHint(string key, string hint)
+        {
+            PlayerPrefs.SetString(KeyHintPrefPrefix + key, hint);
         }
         private string _keySearchFilter = "";
         private string _newKey = "";
@@ -399,6 +416,28 @@ namespace PicoShot.Localization
             EditorGUILayout.EndHorizontal();
         }
 
+        private void DrawTranslationHintField(string key)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Translation Hint (for DeepL):", EditorStyles.miniBoldLabel);
+
+            string currentHint = GetKeyTranslationHint(key);
+            string newHint = EditorGUILayout.TextArea(currentHint, GUILayout.MinHeight(40));
+
+            if (newHint != currentHint)
+            {
+                SetKeyTranslationHint(key, newHint);
+            }
+
+            if (string.IsNullOrEmpty(currentHint))
+            {
+                EditorGUILayout.LabelField("Example: 'view' should be translated as verb not noun",
+                    EditorStyles.miniLabel);
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
         private void DrawKeyDetailsPanel()
         {
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
@@ -407,6 +446,10 @@ namespace PicoShot.Localization
             {
                 EditorGUILayout.LabelField($"Key Details: {_selectedKey}", EditorStyles.boldLabel);
                 _keyDetailsScroll = EditorGUILayout.BeginScrollView(_keyDetailsScroll, GUILayout.ExpandHeight(true));
+
+                DrawTranslationHintField(_selectedKey);
+
+                EditorGUILayout.Space(5);
 
                 if (_languageData.TryGetValue(_selectedKey, out var text))
                 {
@@ -2279,13 +2322,15 @@ namespace PicoShot.Localization
                 return;
             }
 
+            string keyHint = GetKeyTranslationHint(key);
+
             foreach (var lang in _languageCodes.Where(l => l != sourceLang))
             {
                 if (!string.IsNullOrWhiteSpace(keyData[lang]?.ToString())) continue;
 
                 try
                 {
-                    var translated = await TranslateText(sourceText, sourceLang, lang);
+                    var translated = await TranslateText(sourceText, sourceLang, lang, keyHint);
                     if (!string.IsNullOrEmpty(translated))
                     {
                         keyData[lang] = translated;
@@ -2302,17 +2347,23 @@ namespace PicoShot.Localization
             }
         }
 
-        private async Task<string> TranslateText(string text, string sourceLang, string targetLang)
+        private async Task<string> TranslateText(string text, string sourceLang, string targetLang, string keyHint = "")
         {
             string deeplSourceLang = sourceLang.ToUpperInvariant();
             string deeplTargetLang = targetLang.ToUpperInvariant();
+
+            string context = DeeplContext;
+            if (!string.IsNullOrWhiteSpace(keyHint))
+            {
+                context += $"\n\nSpecific instruction for this text: {keyHint}";
+            }
 
             var requestBody = new DeepLTranslateRequest
             {
                 text = new[] { text },
                 source_lang = deeplSourceLang,
                 target_lang = deeplTargetLang,
-                context = DeeplContext
+                context = context
             };
 
             string jsonBody = JsonUtility.ToJson(requestBody);
