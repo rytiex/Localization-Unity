@@ -2544,7 +2544,7 @@ namespace PicoShot.Localization
                     _languageData[key][lang] = keyData[lang] switch
                     {
                         string => "",
-                        List<string> list => new List<string>(new string[list.Count]),
+                        List<string> list => Enumerable.Repeat("", list.Count).ToList(),
                         _ => _languageData[key][lang]
                     };
                 }
