@@ -59,7 +59,11 @@ string[] options = LocalizationManager.GetArray("menu_options");
 
 ## Documentation
 
-- [Usage Guide](Docs/Usage.md) - Complete API documentation and usage examples
+- [Usage Guide](docs/Usage.md) - Complete API documentation and usage examples
+- [Keybinds](docs/Keybinds.md) - Language Editor keyboard shortcuts
+- [BLOC Format](docs/BLOC_FORMAT.md) - Binary localization file format
+- [FAQ](docs/FAQ.md) - Frequently asked questions
+- [How It Works](docs/HowItWorks.md) - Architecture and implementation details
 
 ## Requirements
 

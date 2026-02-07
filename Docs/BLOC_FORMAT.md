@@ -1,3 +1,9 @@
+<div dir="ltr" align=center>
+    
+ [**Usage**](Usage.md) / [**Keybinds**](Keybinds.md) / [**BLOC Format**](BLOC_FORMAT.md) / [**FAQ**](FAQ.md) / [**How It Works**](HowItWorks.md)
+
+</div>
+
 # BLOC (Binary Localization Container) Format
 
 ## Overview

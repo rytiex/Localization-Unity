@@ -1,3 +1,9 @@
+<div dir="ltr" align=center>
+    
+ [**Usage**](Usage.md) / [**Keybinds**](Keybinds.md) / [**BLOC Format**](BLOC_FORMAT.md) / [**FAQ**](FAQ.md) / [**How It Works**](HowItWorks.md)
+
+</div>
+
 # Usage Guide
 
 Complete API documentation for PicoShot Localization system.
@@ -236,8 +242,8 @@ LocalizationManager.BindText(myTextComponent, "greeting", textProcessor: text =>
 
 // Full example
 LocalizationManager.BindText(
-    myTextComponent, 
-    "welcome_message", 
+    myTextComponent,
+    "welcome_message",
     arrayIndex: -1,
     textProcessor: text => $"<color=green>{text}</color>",
     args: "Player"
@@ -255,8 +261,8 @@ LocalizationManager.BindText(myDropdown, "difficulty_options", arrayMaxSize: 5);
 
 // With text processor applied to each option
 LocalizationManager.BindText(
-    myDropdown, 
-    "menu_items", 
+    myDropdown,
+    "menu_items",
     arrayMaxSize: 10,
     textProcessor: text => text.ToUpper()
 );
@@ -541,7 +547,7 @@ public class MainMenuBinder : MonoBehaviour
 
         // Dropdown with difficulty options
         LocalizationManager.BindText(difficultyDropdown, "difficulty_options", arrayMaxSize: 4);
-        
+
         // Subscribe to score changes
         ScoreManager.OnScoreChanged += UpdateScore;
     }
@@ -549,8 +555,8 @@ public class MainMenuBinder : MonoBehaviour
     void UpdateScore(int current, int high)
     {
         LocalizationManager.BindText(
-            scoreText, 
-            "score_display", 
+            scoreText,
+            "score_display",
             args: new object[] { current, high }
         );
     }
