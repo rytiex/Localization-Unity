@@ -13,7 +13,24 @@ MonoBehaviour:
   m_Name: LocalizationConfig
   m_EditorClassIdentifier: PicoShot.Localization::PicoShot.Localization.Config.LocalizationConfig
   _defaultLanguage: en
-  _protectionMode: 0
+  _protectionMode: 1
   _selectedLanguages:
   - en
+  - ar
+  - de
+  - el
+  - es
+  - fr
+  - id
+  - it
+  - ja
+  - ko
+  - nl
+  - pl
+  - pt
+  - ru
+  - sv
+  - tr
+  - uk
+  - zh-hans
   _fileHashes: []
