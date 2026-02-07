@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 using System.Linq;
 using TMPro;
@@ -514,6 +515,9 @@ namespace PicoShot.Localization
             if (GUILayout.Button("Copy Key", GUILayout.Width(80)))
                 ShowCopyKeyMenu();
 
+            if (GUILayout.Button("JSON", GUILayout.Width(80)))
+                ShowJsonOptionsMenu();
+
             if (GUILayout.Button("Clear", GUILayout.Width(80)))
                 ClearKeyData(_selectedKey);
 
@@ -531,6 +535,26 @@ namespace PicoShot.Localization
                 () => { _ = TranslateAndFill(_selectedKey); });
 
             menu.AddItem(new GUIContent("Translate with Gemini (soon)"), false, null);
+
+            menu.ShowAsContext();
+        }
+
+        /// <summary>
+        /// Shows the JSON options menu with Copy and Paste options.
+        /// </summary>
+        private void ShowJsonOptionsMenu()
+        {
+            GenericMenu menu = new GenericMenu();
+
+            menu.AddItem(new GUIContent("Copy as JSON"), false, () =>
+            {
+                CopyKeyAsJson(_selectedKey);
+            });
+
+            menu.AddItem(new GUIContent("Paste from JSON"), false, () =>
+            {
+                PasteKeyFromJson(_selectedKey);
+            });
 
             menu.ShowAsContext();
         }
@@ -590,6 +614,258 @@ namespace PicoShot.Localization
             string code = $"LocalizationManager.GetArray(\"{_selectedKey}\")";
             EditorGUIUtility.systemCopyBuffer = code;
             ShowNotification(new GUIContent("GetArray() snippet copied!"));
+        }
+
+        /// <summary>
+        /// Copies the selected key's translations as JSON to the clipboard.
+        /// Useful for LLM translation workflows.
+        /// </summary>
+        private void CopyKeyAsJson(string key)
+        {
+            if (string.IsNullOrEmpty(key) || !_languageData.TryGetValue(key, out var keyData))
+            {
+                ShowNotification(new GUIContent("No data to copy!"));
+                return;
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+
+            var langs = keyData.Keys.ToList();
+            for (int i = 0; i < langs.Count; i++)
+            {
+                string lang = langs[i];
+                var value = keyData[lang];
+
+                sb.Append($"  \"{lang}\": ");
+
+                if (value is List<string> arr)
+                {
+                    sb.Append("[");
+                    for (int j = 0; j < arr.Count; j++)
+                    {
+                        sb.Append($"\"{EscapeJsonString(arr[j])}\"");
+                        if (j < arr.Count - 1) sb.Append(", ");
+                    }
+                    sb.Append("]");
+                }
+                else
+                {
+                    sb.Append($"\"{EscapeJsonString(value?.ToString() ?? "")}\"");
+                }
+
+                if (i < langs.Count - 1) sb.Append(",");
+                sb.AppendLine();
+            }
+
+            sb.Append("}");
+
+            EditorGUIUtility.systemCopyBuffer = sb.ToString();
+            ShowNotification(new GUIContent($"Key '{key}' copied as JSON!"));
+        }
+
+        /// <summary>
+        /// Pastes JSON content from clipboard into the selected key.
+        /// Useful for LLM translation workflows.
+        /// </summary>
+        private void PasteKeyFromJson(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                ShowNotification(new GUIContent("No key selected!"));
+                return;
+            }
+
+            string json = EditorGUIUtility.systemCopyBuffer;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                ShowNotification(new GUIContent("Clipboard is empty!"));
+                return;
+            }
+
+            try
+            {
+                var parsedData = ParseKeyJson(json);
+                if (parsedData == null || parsedData.Count == 0)
+                {
+                    ShowNotification(new GUIContent("Invalid JSON format!"));
+                    return;
+                }
+
+                bool isArrayKey = IsArrayKey(_languageData[key]);
+                int importedCount = 0;
+
+                foreach (var kvp in parsedData)
+                {
+                    string lang = kvp.Key;
+                    object value = kvp.Value;
+
+                    // Only import for existing languages
+                    if (!_languageCodes.Contains(lang))
+                        continue;
+
+                    if (isArrayKey && value is List<string> list)
+                    {
+                        _languageData[key][lang] = new List<string>(list);
+                        importedCount++;
+                    }
+                    else if (!isArrayKey && value is string str)
+                    {
+                        _languageData[key][lang] = str;
+                        importedCount++;
+                    }
+                    else if (!isArrayKey && value is List<string> strList && strList.Count > 0)
+                    {
+                        // If pasting array into string key, take first element
+                        _languageData[key][lang] = strList[0];
+                        importedCount++;
+                    }
+                    else if (isArrayKey && value is string arrStr)
+                    {
+                        // If pasting string into array key, wrap in list
+                        var existingList = _languageData[key][lang] as List<string>;
+                        if (existingList != null && existingList.Count > 0)
+                        {
+                            existingList[0] = arrStr;
+                        }
+                        else
+                        {
+                            _languageData[key][lang] = new List<string> { arrStr };
+                        }
+                        importedCount++;
+                    }
+                }
+
+                _hasUnsavedChanges = true;
+                ShowNotification(new GUIContent($"Imported {importedCount} translations!"));
+                Repaint();
+            }
+            catch (Exception ex)
+            {
+                ShowNotification(new GUIContent($"Failed to parse JSON: {ex.Message}"));
+                Debug.LogError($"[LocalizationEditor] Failed to paste JSON: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Parses JSON for a single key's translations.
+        /// Returns a dictionary of language code to value (string or List<string>).
+        /// </summary>
+        private Dictionary<string, object> ParseKeyJson(string json)
+        {
+            var result = new Dictionary<string, object>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            int pos = 0;
+            SkipWhitespace(json, ref pos);
+
+            if (pos >= json.Length || json[pos] != '{')
+                throw new Exception("JSON must start with {");
+
+            pos++;
+            SkipWhitespace(json, ref pos);
+
+            if (pos < json.Length && json[pos] == '}')
+                return result;
+
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length) break;
+
+                if (json[pos] == '}')
+                {
+                    pos++;
+                    break;
+                }
+
+                string lang = ParseJsonString(json, ref pos);
+                SkipWhitespace(json, ref pos);
+
+                if (pos >= json.Length || json[pos] != ':')
+                    throw new Exception("Expected ':' after language code");
+                pos++;
+
+                SkipWhitespace(json, ref pos);
+
+                // Parse value (string or array)
+                if (pos < json.Length && json[pos] == '[')
+                {
+                    result[lang] = ParseJsonArray(json, ref pos);
+                }
+                else
+                {
+                    result[lang] = ParseJsonString(json, ref pos);
+                }
+
+                SkipWhitespace(json, ref pos);
+
+                if (pos < json.Length && json[pos] == ',')
+                {
+                    pos++;
+                    continue;
+                }
+
+                if (pos < json.Length && json[pos] == '}')
+                {
+                    pos++;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Parses a JSON array of strings.
+        /// </summary>
+        private List<string> ParseJsonArray(string json, ref int pos)
+        {
+            var result = new List<string>();
+
+            if (pos >= json.Length || json[pos] != '[')
+                throw new Exception("Expected '[' for array");
+            pos++;
+
+            SkipWhitespace(json, ref pos);
+
+            if (pos < json.Length && json[pos] == ']')
+            {
+                pos++;
+                return result;
+            }
+
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+
+                if (pos >= json.Length) break;
+
+                if (json[pos] == ']')
+                {
+                    pos++;
+                    break;
+                }
+
+                string value = ParseJsonString(json, ref pos);
+                result.Add(value);
+
+                SkipWhitespace(json, ref pos);
+
+                if (pos < json.Length && json[pos] == ',')
+                {
+                    pos++;
+                    continue;
+                }
+
+                if (pos < json.Length && json[pos] == ']')
+                {
+                    pos++;
+                    break;
+                }
+            }
+
+            return result;
         }
 
         private void DrawKeysListPanel()
@@ -3057,58 +3333,6 @@ namespace PicoShot.Localization
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// Parses a JSON array of strings.
-        /// </summary>
-        private List<string> ParseJsonArray(string json, ref int pos)
-        {
-            var result = new List<string>();
-
-            if (pos >= json.Length || json[pos] != '[')
-                throw new Exception("Expected '[' to start array");
-            pos++;
-
-            SkipWhitespace(json, ref pos);
-
-            if (pos < json.Length && json[pos] == ']')
-            {
-                pos++;
-                return result;
-            }
-
-            while (pos < json.Length)
-            {
-                SkipWhitespace(json, ref pos);
-
-                if (pos >= json.Length)
-                    throw new Exception("Unexpected end of array");
-
-                if (json[pos] == ']')
-                {
-                    pos++;
-                    return result;
-                }
-
-                string value = ParseJsonString(json, ref pos);
-                result.Add(value);
-
-                SkipWhitespace(json, ref pos);
-
-                if (pos < json.Length && json[pos] == ',')
-                {
-                    pos++;
-                    continue;
-                }
-                else if (pos < json.Length && json[pos] == ']')
-                {
-                    pos++;
-                    return result;
-                }
-            }
-
-            throw new Exception("Unterminated array");
         }
 
         /// <summary>
