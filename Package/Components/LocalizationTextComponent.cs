@@ -50,7 +50,8 @@ namespace PicoShot.Localization
             {
                 if (translationKey == value) return;
                 translationKey = value;
-                UpdateText();
+                if (Application.isPlaying)
+                    UpdateText();
             }
         }
 
@@ -64,7 +65,8 @@ namespace PicoShot.Localization
             {
                 if (arrayIndex == value) return;
                 arrayIndex = value;
-                UpdateText();
+                if (Application.isPlaying)
+                    UpdateText();
             }
         }
 
@@ -78,7 +80,8 @@ namespace PicoShot.Localization
             {
                 if (arraySizeLimit == value) return;
                 arraySizeLimit = value;
-                UpdateText();
+                if (Application.isPlaying)
+                    UpdateText();
             }
         }
 
@@ -91,7 +94,8 @@ namespace PicoShot.Localization
             set
             {
                 formatParameters = value ?? Array.Empty<string>();
-                UpdateText();
+                if (Application.isPlaying)
+                    UpdateText();
             }
         }
 
@@ -147,7 +151,7 @@ namespace PicoShot.Localization
         private void OnEnable()
         {
             LocalizationManager.OnLanguageChanged += UpdateText;
-            if (_isInitialized)
+            if (_isInitialized && Application.isPlaying)
             {
                 UpdateText();
             }
