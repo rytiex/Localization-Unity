@@ -2368,7 +2368,7 @@ namespace PicoShot.Localization
 
                 SyncProtectionOnLoad();
 
-                Debug.Log($"[LocalizationEditor] Loaded {_keys.Count} keys across {_languageCodes.Count} languages.");
+                //Debug.Log($"[LocalizationEditor] Loaded {_keys.Count} keys across {_languageCodes.Count} languages.");
             }
             catch (Exception ex)
             {
