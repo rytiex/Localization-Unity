@@ -35,6 +35,23 @@ namespace PicoShot.Localization
             window.ShowPopup();
         }
 
+        public static void ShowCenteredOnWindow(Rect parentWindowRect, string[] items, int selectedIndex, Action<int> onItemSelected)
+        {
+            var window = CreateInstance<LocalizationSearchablePopup>();
+            window._items = new List<string>(items);
+            window._filteredItems = new List<string>(items);
+            window._selectedIndex = selectedIndex;
+            window._onItemSelected = onItemSelected;
+            window._focusSearchField = true;
+
+            // Center on parent window
+            float x = parentWindowRect.x + (parentWindowRect.width - Size.x) / 2;
+            float y = parentWindowRect.y + (parentWindowRect.height - Size.y) / 2;
+            window.position = new Rect(x, y, Size.x, Size.y);
+
+            window.ShowPopup();
+        }
+
         private void OnGUI()
         {
             DrawHeader();

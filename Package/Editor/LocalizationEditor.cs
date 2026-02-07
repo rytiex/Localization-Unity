@@ -92,6 +92,7 @@ namespace PicoShot.Localization
         private string _testResult = "";
         private string _selectedKey;
         private string _componentSearchFilter = "";
+        private LocalizationTextComponent _pendingKeySelection;
         private readonly List<string> _languageCodes = new() { "en" };
         private readonly List<string> _parameterList = new();
         private List<string> _keys = new();
@@ -1514,6 +1515,7 @@ namespace PicoShot.Localization
                 if (GUILayout.Button("Add Language Support", GUILayout.Width(150)))
                 {
                     langComponent = Undo.AddComponent<LocalizationTextComponent>(go);
+                    _pendingKeySelection = langComponent;
                 }
             }
             else
@@ -1567,15 +1569,36 @@ namespace PicoShot.Localization
                 alignment = TextAnchor.MiddleLeft
             };
 
-            if (EditorGUI.DropdownButton(buttonRect, new GUIContent(displayText), FocusType.Keyboard, style))
+            bool userClicked = EditorGUI.DropdownButton(buttonRect, new GUIContent(displayText), FocusType.Keyboard, style);
+            bool autoOpen = _pendingKeySelection == langComponent;
+
+            if (autoOpen)
             {
-                LocalizationSearchablePopup.Show(buttonRect, _keys.ToArray(), selectedIndex, (index) =>
+                _pendingKeySelection = null;
+            }
+
+            if (userClicked || autoOpen)
+            {
+                if (autoOpen)
                 {
-                    if (index == selectedIndex || index < 0) return;
-                    Undo.RecordObject(langComponent, "Change Language Key");
-                    langComponent.TranslationKey = _keys[index];
-                    EditorUtility.SetDirty(langComponent);
-                });
+                    LocalizationSearchablePopup.ShowCenteredOnWindow(position, _keys.ToArray(), selectedIndex, (index) =>
+                    {
+                        if (index == selectedIndex || index < 0) return;
+                        Undo.RecordObject(langComponent, "Change Language Key");
+                        langComponent.TranslationKey = _keys[index];
+                        EditorUtility.SetDirty(langComponent);
+                    });
+                }
+                else
+                {
+                    LocalizationSearchablePopup.Show(buttonRect, _keys.ToArray(), selectedIndex, (index) =>
+                    {
+                        if (index == selectedIndex || index < 0) return;
+                        Undo.RecordObject(langComponent, "Change Language Key");
+                        langComponent.TranslationKey = _keys[index];
+                        EditorUtility.SetDirty(langComponent);
+                    });
+                }
             }
 
             EditorGUILayout.EndHorizontal();
