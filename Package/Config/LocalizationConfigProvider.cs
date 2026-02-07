@@ -8,7 +8,7 @@ namespace PicoShot.Localization.Config
     /// </summary>
     public static class LocalizationConfigProvider
     {
-        private const string ConfigPath = "Assets/LocalizationManager/Config/Resources/LocalizationConfig.asset";
+        private const string ConfigPath = "Assets/Resources/Localization/LocalizationConfig.asset";
         private const string ResourcesPath = "LocalizationConfig";
 
         private static LocalizationConfig _cachedConfig;
