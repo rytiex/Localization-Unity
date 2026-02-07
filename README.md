@@ -76,7 +76,8 @@ string[] options = LocalizationManager.GetArray("menu_options");
 Special thanks to my friends for their hot-fixes, suggestions, and help with implementing this project:
 
 - [Xeirel](https://github.com/Xeirel)
-- [FeroKro](https://github.com/FeroKro)
+- [Fero](https://github.com/FeroKro)
+- [RyTiex](https://github.com/rytiex)
 
 ## License
 
