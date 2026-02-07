@@ -12,6 +12,8 @@ namespace PicoShot.Localization
         private Action<string> _onSave;
         private Vector2 _scrollPosition;
         private GUIStyle _richTextStyle;
+        private bool _focused;
+        private const string TextAreaControlName = "LocalizationTextEditor_TextArea";
 
         private const float WindowWidth = 400f;
         private const float WindowHeight = 300f;
@@ -21,6 +23,7 @@ namespace PicoShot.Localization
             var window = GetWindow<LocalizationTextEditorPopup>("Text Editor");
             window._text = initialText;
             window._onSave = saveCallback;
+            window._focused = false;
             window.minSize = new Vector2(WindowWidth, WindowHeight);
             window.maxSize = new Vector2(WindowWidth * 2, WindowHeight * 2);
             window.position = new Rect(
@@ -100,13 +103,22 @@ namespace PicoShot.Localization
         private void OnGUI()
         {
             InitializeStyles();
+            HandleKeyboardInput();
 
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Edit Text", EditorStyles.boldLabel);
             EditorGUILayout.Space(5);
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
             var displayText = ApplySyntaxHighlighting(_text);
+
+            GUI.SetNextControlName(TextAreaControlName);
             var newText = EditorGUILayout.TextArea(displayText, _richTextStyle, GUILayout.ExpandHeight(true));
+
+            if (!_focused)
+            {
+                _focused = true;
+                EditorGUI.FocusTextInControl(TextAreaControlName);
+            }
 
             if (newText != displayText)
             {
@@ -120,8 +132,7 @@ namespace PicoShot.Localization
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Save", GUILayout.Width(100), GUILayout.Height(30)))
             {
-                _onSave?.Invoke(_text);
-                Close();
+                SaveAndClose();
             }
             if (GUILayout.Button("Close", GUILayout.Width(100), GUILayout.Height(30)))
             {
@@ -130,6 +141,31 @@ namespace PicoShot.Localization
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space(10);
+        }
+
+        private void HandleKeyboardInput()
+        {
+            if (Event.current.type != EventType.KeyDown) return;
+
+            if (Event.current.control && Event.current.keyCode == KeyCode.S)
+            {
+                Event.current.Use();
+                SaveAndClose();
+            }
+            else if (Event.current.keyCode == KeyCode.Escape)
+            {
+                if (GUI.GetNameOfFocusedControl() == TextAreaControlName)
+                {
+                    Event.current.Use();
+                    Close();
+                }
+            }
+        }
+
+        private void SaveAndClose()
+        {
+            _onSave?.Invoke(_text);
+            Close();
         }
     }
 }
