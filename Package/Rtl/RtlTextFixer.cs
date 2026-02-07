@@ -1,4 +1,3 @@
-using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
@@ -29,7 +28,7 @@ namespace PicoShot.Localization.Rtl
         /// <summary>
         /// Fixes a line of RTL text for proper display.
         /// </summary>
-        public static string FixLine(string line, RtlFixOptions options)
+        internal static string FixLine(string line, RtlFixOptions options)
         {
             if (string.IsNullOrEmpty(line))
                 return line;
@@ -43,7 +42,7 @@ namespace PicoShot.Localization.Rtl
             }
 
             int length = processedLine.Length;
-            
+
             // Rent arrays from pool to avoid allocations
             char[] isolatedChars = ArrayPool<char>.Shared.Rent(length);
             char[] connectedChars = ArrayPool<char>.Shared.Rent(length);
@@ -61,11 +60,11 @@ namespace PicoShot.Localization.Rtl
                 int connectedLength = 0;
                 for (int i = 0; i < length; i++)
                 {
-                    if (i < length - 1 && 
+                    if (i < length - 1 &&
                         ArabicGlyphConnector.TryCombineLamAlef(
-                            isolatedChars[i], 
-                            isolatedChars[i + 1], 
-                            out char combinedLam, 
+                            isolatedChars[i],
+                            isolatedChars[i + 1],
+                            out char combinedLam,
                             out char nextOutput))
                     {
                         connectedChars[connectedLength++] = combinedLam;
@@ -83,7 +82,7 @@ namespace PicoShot.Localization.Rtl
                 for (int i = 0; i < connectedLength; i++)
                 {
                     char c = connectedChars[i];
-                    
+
                     if (ArabicGlyphConnector.IsIgnoredCharacter(c))
                     {
                         finalChars[finalLength++] = c;
@@ -92,12 +91,12 @@ namespace PicoShot.Localization.Rtl
 
                     var position = ArabicGlyphConnector.GetLetterPosition(connectedChars, i, connectedLength);
                     char glyphForm = ArabicGlyphConnector.GetGlyphForm(c, position);
-                    
+
                     if (options.UseHinduNumbers)
                     {
                         glyphForm = ConvertToHinduNumber(glyphForm);
                     }
-                    
+
                     finalChars[finalLength++] = glyphForm;
                 }
 

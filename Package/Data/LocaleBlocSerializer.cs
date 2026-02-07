@@ -11,7 +11,7 @@ namespace PicoShot.Localization.Data
     /// BLOC (Binary Localization Container) format serializer.
     /// Optimized binary format with optional compression and string deduplication.
     /// </summary>
-    public static class LocaleBlocSerializer
+    internal static class LocaleBlocSerializer
     {
         private static readonly byte[] Magic = { 0x42, 0x4C, 0x4F, 0x43 }; // "BLOC"
         private const int Version = 1;
@@ -58,30 +58,30 @@ namespace PicoShot.Localization.Data
 
                 uncompressedData = ms.ToArray();
                 uint crc = ComputeCrc32(uncompressedData, 0, uncompressedData.Length);
-                
+
                 ms.Position = 0;
                 writer.Write(uncompressedData, 0, uncompressedData.Length);
                 writer.Write(crc);
-                
+
                 uncompressedData = ms.ToArray();
             }
 
             if (compress && CompressionLevel != CompressionLevel.NoCompression)
             {
                 byte[] compressed = CompressData(uncompressedData);
-                
+
                 if (compressed.Length < uncompressedData.Length - 4)
                 {
                     using var resultMs = new MemoryStream(8 + compressed.Length);
                     using var resultWriter = new BinaryWriter(resultMs, Encoding.UTF8);
-                    
+
                     WriteHeader(resultWriter, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
                         (uint)uncompressedData.Length, true);
-                    
+
                     resultWriter.Write(uncompressedData.Length);
-                    
+
                     resultWriter.Write(compressed);
-                    
+
                     return resultMs.ToArray();
                 }
             }
@@ -107,16 +107,16 @@ namespace PicoShot.Localization.Data
             bool isCompressed = (flags & FlagCompressed) != 0;
 
             byte[] uncompressedData;
-            
+
             if (isCompressed)
             {
                 if (data.Length < 32)
                     throw new InvalidDataException("Compressed data too short");
-                
+
                 int uncompressedSize = BitConverter.ToInt32(data, 24);
                 if (uncompressedSize < 0 || uncompressedSize > 100_000_000) // 100MB sanity check
                     throw new InvalidDataException("Invalid uncompressed size");
-                
+
                 uncompressedData = DecompressData(data, 28, data.Length - 28, uncompressedSize);
             }
             else
@@ -185,10 +185,10 @@ namespace PicoShot.Localization.Data
         private static byte[] DecompressData(byte[] compressedData, int offset, int count, int uncompressedSize)
         {
             byte[] result = new byte[uncompressedSize];
-            
+
             using var inputMs = new MemoryStream(compressedData, offset, count);
             using var deflateStream = new DeflateStream(inputMs, CompressionMode.Decompress);
-            
+
             int totalRead = 0;
             while (totalRead < uncompressedSize)
             {
@@ -197,7 +197,7 @@ namespace PicoShot.Localization.Data
                     throw new InvalidDataException("Decompression incomplete");
                 totalRead += read;
             }
-            
+
             return result;
         }
 
@@ -209,7 +209,7 @@ namespace PicoShot.Localization.Data
             uint entryCount, uint stringCount, uint stringPoolOffset, bool compressed)
         {
             ushort flags = compressed ? FlagCompressed : (ushort)0;
-            
+
             writer.Write(Magic);                          // 0-3: Magic
             writer.Write((ushort)Version);                // 4-5: Version
             writer.Write(flags);                          // 6-7: Flags
@@ -226,7 +226,7 @@ namespace PicoShot.Localization.Data
             writer.Write(stringPoolOffset);               // 20-23: String pool offset (or uncompressed size if compressed)
         }
 
-        private static (ushort Version, string LanguageCode, uint EntryCount, 
+        private static (ushort Version, string LanguageCode, uint EntryCount,
             uint StringCount, uint StringPoolOffset) ReadHeader(BinaryReader reader)
         {
             reader.ReadBytes(4); // Skip magic
@@ -255,7 +255,7 @@ namespace PicoShot.Localization.Data
             foreach (var kvp in translations)
             {
                 size += 4; // Key ID
-                
+
                 if (kvp.Value is List<string> list)
                 {
                     size += 4; // Array header

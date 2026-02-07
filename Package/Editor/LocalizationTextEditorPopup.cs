@@ -54,44 +54,44 @@ namespace PicoShot.Localization
                 switch (input[i])
                 {
                     case '{':
-                    {
-                        var closingIndex = input.IndexOf('}', i);
-                        if (closingIndex != -1)
                         {
-                            var token = input.Substring(i, closingIndex - i + 1);
-                            if (Regex.IsMatch(token, @"^\{\d+\}$"))
+                            var closingIndex = input.IndexOf('}', i);
+                            if (closingIndex != -1)
                             {
-                                var number = token.Substring(1, token.Length - 2);
-                                sb.Append("<color=#569CD6>{</color>");
-                                sb.Append($"<color=#B5CEA8>{number}</color>");
-                                sb.Append("<color=#569CD6>}</color>");
+                                var token = input.Substring(i, closingIndex - i + 1);
+                                if (Regex.IsMatch(token, @"^\{\d+\}$"))
+                                {
+                                    var number = token.Substring(1, token.Length - 2);
+                                    sb.Append("<color=#569CD6>{</color>");
+                                    sb.Append($"<color=#B5CEA8>{number}</color>");
+                                    sb.Append("<color=#569CD6>}</color>");
+                                }
+                                else
+                                {
+                                    sb.Append($"<color=red>{token}</color>");
+                                }
+                                i = closingIndex + 1;
                             }
                             else
                             {
-                                sb.Append($"<color=red>{token}</color>");
+                                sb.Append("<color=red>{</color>");
+                                i++;
                             }
-                            i = closingIndex + 1;
-                        }
-                        else
-                        {
-                            sb.Append("<color=red>{</color>");
-                            i++;
-                        }
 
-                        break;
-                    }
+                            break;
+                        }
                     case '}':
                         sb.Append("<color=red>}</color>");
                         i++;
                         break;
                     default:
-                    {
-                        var nextBrace = input.IndexOfAny(new[] { '{', '}' }, i);
-                        if (nextBrace == -1) nextBrace = input.Length;
-                        sb.Append(input.Substring(i, nextBrace - i));
-                        i = nextBrace;
-                        break;
-                    }
+                        {
+                            var nextBrace = input.IndexOfAny(new[] { '{', '}' }, i);
+                            if (nextBrace == -1) nextBrace = input.Length;
+                            sb.Append(input.Substring(i, nextBrace - i));
+                            i = nextBrace;
+                            break;
+                        }
                 }
             }
             return sb.ToString();

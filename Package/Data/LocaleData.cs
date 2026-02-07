@@ -49,7 +49,7 @@ namespace PicoShot.Localization.Data
         /// <summary>
         /// Gets a translation value by key.
         /// </summary>
-        public object GetValue(string key) => 
+        public object GetValue(string key) =>
             Translations?.TryGetValue(key, out var value) ?? false ? value : null;
 
         /// <summary>

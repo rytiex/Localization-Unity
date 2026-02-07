@@ -191,8 +191,8 @@ namespace PicoShot.Localization
             _legacyDropdown = GetComponent<Dropdown>();
             _textMesh = GetComponent<TextMesh>();
 
-            if (_tmpText == null && _tmpDropdown == null && 
-                _legacyText == null && _legacyDropdown == null && 
+            if (_tmpText == null && _tmpDropdown == null &&
+                _legacyText == null && _legacyDropdown == null &&
                 _textMesh == null)
             {
                 Debug.LogError($"[LocalizationTextComponent] No supported text component found on {gameObject.name}. " +

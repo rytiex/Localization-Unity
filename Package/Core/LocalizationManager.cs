@@ -638,7 +638,7 @@ namespace PicoShot.Localization
 
             localizedComponent.TranslationKey = key;
             localizedComponent.ArrayIndex = arrayIndex;
-            
+
             if (args != null && args.Length > 0)
             {
                 localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
@@ -674,7 +674,7 @@ namespace PicoShot.Localization
 
             localizedComponent.TranslationKey = key;
             localizedComponent.ArraySizeLimit = arrayMaxSize;
-            
+
             if (args != null && args.Length > 0)
             {
                 localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
@@ -710,7 +710,7 @@ namespace PicoShot.Localization
 
             localizedComponent.TranslationKey = key;
             localizedComponent.ArrayIndex = arrayIndex;
-            
+
             if (args != null && args.Length > 0)
             {
                 localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
@@ -746,7 +746,7 @@ namespace PicoShot.Localization
 
             localizedComponent.TranslationKey = key;
             localizedComponent.ArraySizeLimit = arrayMaxSize;
-            
+
             if (args != null && args.Length > 0)
             {
                 localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());
@@ -782,7 +782,7 @@ namespace PicoShot.Localization
 
             localizedComponent.TranslationKey = key;
             localizedComponent.ArrayIndex = arrayIndex;
-            
+
             if (args != null && args.Length > 0)
             {
                 localizedComponent.SetFormatParameters(args.Select(a => a?.ToString() ?? string.Empty).ToArray());

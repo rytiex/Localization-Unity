@@ -67,7 +67,7 @@ namespace PicoShot.Localization.Rtl
                 return LetterPosition.End;
             if (hasNext)
                 return LetterPosition.Beginning;
-            
+
             return LetterPosition.Isolated;
         }
 
@@ -82,22 +82,22 @@ namespace PicoShot.Localization.Rtl
         private static bool CanConnectFromPrevious(char[] word, int index)
         {
             if (index == 0) return false;
-            
+
             char prevChar = word[index - 1];
             if (prevChar < 0xFE80 || prevChar > 0xFEFF)
                 return false;
-            
+
             return !IsNonConnecting(prevChar);
         }
 
         private static bool CanConnectToNext(char[] word, int index)
         {
             if (index >= word.Length - 1) return false;
-            
+
             char nextChar = word[index + 1];
             if (nextChar < 0xFE80 || nextChar > 0xFEFF)
                 return false;
-            
+
             return !IsNonConnecting(word[index]);
         }
 
@@ -125,9 +125,9 @@ namespace PicoShot.Localization.Rtl
         public static bool IsIgnoredCharacter(char ch)
         {
             bool isPresentationFormB = ch >= '\uFE70' && ch <= '\uFEFF';
-            
+
             bool isPersianCharacter = ch is '\uFB56' or '\uFB7A' or '\uFB8A' or '\uFB92' or '\uFB8E';
-            
+
             bool isAcceptableCharacter = isPresentationFormB || isPersianCharacter || ch == '\uFBFC';
 
             if (!isAcceptableCharacter)

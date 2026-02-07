@@ -1,5 +1,3 @@
-using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 
@@ -46,7 +44,7 @@ namespace PicoShot.Localization.Rtl
         public static string RemoveTashkeel(string input, out List<TashkeelPosition> positions)
         {
             positions = new List<TashkeelPosition>(input.Length / 8);
-            
+
             if (string.IsNullOrEmpty(input))
                 return input;
 
@@ -131,7 +129,7 @@ namespace PicoShot.Localization.Rtl
                 return;
 
             int newLength = length + positions.Count;
-            
+
             // Shift characters to make room for tashkeel
             for (int i = length - 1; i >= 0; i--)
             {
