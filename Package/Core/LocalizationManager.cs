@@ -120,7 +120,11 @@ namespace PicoShot.Localization
                     return;
                 }
 
-                SetLanguage(DetectSystemLanguage(), useFallback: false);
+                string targetLanguage = !string.IsNullOrEmpty(_currentLanguageCode) && _availableLanguages.Contains(_currentLanguageCode)
+                    ? _currentLanguageCode
+                    : DetectSystemLanguage();
+
+                SetLanguage(targetLanguage, useFallback: false);
 
                 Application.quitting += Dispose;
                 OnLanguageChanged?.Invoke();
@@ -822,7 +826,6 @@ namespace PicoShot.Localization
             _arrayCache?.Clear();
 
             _isInitialized = false;
-            _currentLanguageCode = DefaultLanguage;
         }
 
         #endregion
