@@ -68,13 +68,16 @@ namespace PicoShot.Localization.Config
                 System.IO.Directory.CreateDirectory(directory);
             }
 
-            var config = ScriptableObject.CreateInstance<LocalizationConfig>();
-            UnityEditor.AssetDatabase.CreateAsset(config, ConfigPath);
-            UnityEditor.AssetDatabase.SaveAssets();
-            UnityEditor.AssetDatabase.Refresh();
-
-            Debug.Log($"[LocalizationConfig] Created default config at: {ConfigPath}");
-            return config;
+            if (!System.IO.File.Exists(ConfigPath))
+            {
+                var config = ScriptableObject.CreateInstance<LocalizationConfig>();
+                UnityEditor.AssetDatabase.CreateAsset(config, ConfigPath);
+                UnityEditor.AssetDatabase.SaveAssets();
+                UnityEditor.AssetDatabase.Refresh();
+                Debug.Log($"[LocalizationConfig] Created default config at: {ConfigPath}");
+                return config;
+            }
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<LocalizationConfig>(ConfigPath);
         }
 
         /// <summary>
