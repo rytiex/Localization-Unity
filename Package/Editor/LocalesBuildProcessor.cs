@@ -77,7 +77,7 @@ namespace PicoShot.Localization.Editor
         {
             if (!Directory.Exists(sourcePath))
             {
-                UnityEngine.Debug.LogWarning($"[LocalesBuildProcessor] No locales folder found at: {sourcePath}");
+                Debug.LogWarning($"[LocalesBuildProcessor] No locales folder found at: {sourcePath}");
                 return;
             }
 
@@ -100,11 +100,11 @@ namespace PicoShot.Localization.Editor
                     File.Copy(file, destFile, true);
                 }
 
-                UnityEngine.Debug.Log($"[LocalesBuildProcessor] Copied {files.Length} locale files to {destinationName}: {targetPath}");
+                Debug.Log($"[LocalesBuildProcessor] Copied {files.Length} locale files to {destinationName}: {targetPath}");
             }
             catch (System.Exception ex)
             {
-                UnityEngine.Debug.LogError($"[LocalesBuildProcessor] Failed to copy locales: {ex.Message}");
+                Debug.LogError($"[LocalesBuildProcessor] Failed to copy locales: {ex.Message}");
             }
         }
 
