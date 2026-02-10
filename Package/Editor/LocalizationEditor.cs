@@ -254,13 +254,22 @@ namespace PicoShot.Localization
                             continue;
                         }
 
-                        var localeData = LocalizationManager.LoadLocaleFromFile(file);
-
-                        if (localeData.LanguageCode != langCode)
+                        if (!LanguageDefinitions.IsValidLanguage(langCode))
                         {
-                            Debug.LogWarning($"[LocalizationEditor] Language code mismatch in '{Path.GetFileName(file)}': " +
-                                $"header='{langCode}', content='{localeData.LanguageCode}'. Using header value.");
+                            Debug.LogError($"[LocalizationEditor] Rejecting file '{Path.GetFileName(file)}' - unsupported language code: '{langCode}'");
+                            continue;
                         }
+
+                        string fileNameLanguage = Path.GetFileNameWithoutExtension(file);
+                        if (!string.Equals(fileNameLanguage, langCode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            Debug.LogError($"[LocalizationEditor] Rejecting file '{Path.GetFileName(file)}' - filename mismatch: " +
+                                $"expected '{langCode}.bloc' but filename is '{Path.GetFileName(file)}'. " +
+                                $"Filename must match the language code stored in the file header.");
+                            continue;
+                        }
+
+                        var localeData = LocalizationManager.LoadLocaleFromFile(file);
 
                         if (!_data.LanguageCodes.Contains(langCode))
                         {
@@ -279,12 +288,6 @@ namespace PicoShot.Localization
                             }
 
                             _data.LanguageData[key][langCode] = value;
-                        }
-
-                        string fileNameLanguage = Path.GetFileNameWithoutExtension(file);
-                        if (!string.Equals(fileNameLanguage, langCode, StringComparison.OrdinalIgnoreCase))
-                        {
-                            Debug.LogWarning($"[LocalizationEditor] File name mismatch: '{Path.GetFileName(file)}' contains language '{langCode}'");
                         }
                     }
                     catch (Exception ex)

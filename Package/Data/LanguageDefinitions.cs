@@ -341,6 +341,14 @@ namespace PicoShot.Localization.Data
         }
 
         /// <summary>
+        /// Checks if a language code is supported/valid.
+        /// </summary>
+        public static bool IsValidLanguage(string languageCode)
+        {
+            return !string.IsNullOrEmpty(languageCode) && LanguageNames.ContainsKey(languageCode);
+        }
+
+        /// <summary>
         /// Maps Unity's SystemLanguage to ISO language codes (DeepL compatible).
         /// </summary>
         public static string FromSystemLanguage(UnityEngine.SystemLanguage systemLanguage)

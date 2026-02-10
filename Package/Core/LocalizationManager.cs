@@ -162,6 +162,13 @@ namespace PicoShot.Localization
                     continue;
                 }
 
+                if (!LanguageDefinitions.IsValidLanguage(languageCode))
+                {
+                    Debug.LogError($"[LocalizationManager] Rejecting file '{fileName}' - unsupported language code: '{languageCode}'");
+                    OnLanguageLoadError?.Invoke($"Unsupported language: {languageCode}");
+                    continue;
+                }
+
                 if (config.ProtectionMode == ProtectionMode.SelectionOnly ||
                     config.ProtectionMode == ProtectionMode.Both)
                 {
@@ -182,13 +189,17 @@ namespace PicoShot.Localization
                     }
                 }
 
-                _availableLanguages.Add(languageCode);
-
                 string fileNameLanguage = Path.GetFileNameWithoutExtension(file);
                 if (!string.Equals(fileNameLanguage, languageCode, StringComparison.OrdinalIgnoreCase))
                 {
-                    Debug.LogWarning($"[LocalizationManager] File name mismatch: '{fileName}' contains language '{languageCode}'");
+                    Debug.LogError($"[LocalizationManager] Rejecting file '{fileName}' - filename mismatch: " +
+                        $"expected '{languageCode}{FileExtension}' but found '{fileName}'. " +
+                        $"Filename must match the language code stored in the file header.");
+                    OnLanguageLoadError?.Invoke($"Invalid filename: {fileName}");
+                    continue;
                 }
+
+                _availableLanguages.Add(languageCode);
             }
 
             if (_availableLanguages.Contains(config.DefaultLanguage))
