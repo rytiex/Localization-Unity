@@ -11,23 +11,23 @@ namespace PicoShot.Localization.Editor.Tabs
     {
         protected readonly LocalizationEditor Editor;
         protected readonly LanguageEditorData Data;
-        
+
         protected LocalizationEditorTabBase(LocalizationEditor editor, LanguageEditorData data)
         {
             Editor = editor;
             Data = data;
         }
-        
+
         public abstract string TabName { get; }
-        
+
         public virtual void OnEnter() { }
-        
+
         public virtual void OnExit() { }
-        
+
         public abstract void Draw();
-        
+
         public virtual bool HandleKeyboardInput(Event evt) => false;
-        
+
         /// <summary>
         /// Helper to draw a section header with consistent styling.
         /// </summary>
@@ -36,7 +36,7 @@ namespace PicoShot.Localization.Editor.Tabs
             EditorGUILayout.Space(5);
             EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
         }
-        
+
         /// <summary>
         /// Helper to draw a box container.
         /// </summary>
@@ -44,7 +44,7 @@ namespace PicoShot.Localization.Editor.Tabs
         {
             return new EditorGUILayout.VerticalScope("box");
         }
-        
+
         /// <summary>
         /// Helper to draw a help box with a message.
         /// </summary>
@@ -52,7 +52,7 @@ namespace PicoShot.Localization.Editor.Tabs
         {
             EditorGUILayout.HelpBox(message, type);
         }
-        
+
         /// <summary>
         /// Helper to get the window position.
         /// </summary>

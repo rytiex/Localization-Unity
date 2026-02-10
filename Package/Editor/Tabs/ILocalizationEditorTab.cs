@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEditor;
 
 namespace PicoShot.Localization.Editor.Tabs
 {
@@ -13,22 +12,22 @@ namespace PicoShot.Localization.Editor.Tabs
         /// The display name of the tab shown in the toolbar.
         /// </summary>
         string TabName { get; }
-        
+
         /// <summary>
         /// Called when the tab becomes active.
         /// </summary>
         void OnEnter();
-        
+
         /// <summary>
         /// Called when the tab becomes inactive.
         /// </summary>
         void OnExit();
-        
+
         /// <summary>
         /// Draw the tab content.
         /// </summary>
         void Draw();
-        
+
         /// <summary>
         /// Handle keyboard shortcuts specific to this tab.
         /// Return true if the event was consumed.

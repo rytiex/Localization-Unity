@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using PicoShot.Localization.Config;
 using PicoShot.Localization.Data;
 using PicoShot.Localization.Editor.Data;
 using PicoShot.Localization.Editor.Services;
@@ -19,15 +18,15 @@ namespace PicoShot.Localization.Editor.Tabs
         private bool _isResizingKeysList;
         private string _newKey = "";
         private bool _pendingDelete;
-        
+
         public KeysTab(LocalizationEditor editor, LanguageEditorData data) : base(editor, data)
         {
             _translationService = new TranslationService(data);
             _jsonService = new JsonService(data);
         }
-        
+
         public override string TabName => "Keys";
-        
+
         public override void Draw()
         {
             // Add key and filter section
@@ -36,9 +35,9 @@ namespace PicoShot.Localization.Editor.Tabs
                 DrawAddKeySection();
                 DrawSearchAndFilterSection();
             }
-            
+
             EditorGUILayout.Space();
-            
+
             // Split view
             EditorGUILayout.BeginHorizontal();
             DrawKeysListPanel();
@@ -46,17 +45,17 @@ namespace PicoShot.Localization.Editor.Tabs
             DrawKeyDetailsPanel();
             EditorGUILayout.EndHorizontal();
         }
-        
+
         private void DrawAddKeySection()
         {
             EditorGUILayout.BeginVertical("box");
             EditorGUILayout.LabelField("Add New Key", EditorStyles.boldLabel);
-            
+
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Key Name:", GUILayout.Width(70));
             _newKey = EditorGUILayout.TextField(_newKey);
             EditorGUILayout.EndHorizontal();
-            
+
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Add String Key", GUILayout.Width(120), GUILayout.Height(25)))
@@ -64,14 +63,14 @@ namespace PicoShot.Localization.Editor.Tabs
             if (GUILayout.Button("Add Array Key", GUILayout.Width(120), GUILayout.Height(25)))
                 AddKey(true);
             EditorGUILayout.EndHorizontal();
-            
+
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawSearchAndFilterSection()
         {
             EditorGUILayout.BeginVertical("box");
-            
+
             // Search
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Search Keys:", GUILayout.Width(80));
@@ -82,29 +81,29 @@ namespace PicoShot.Localization.Editor.Tabs
                 GUI.FocusControl(null);
             }
             EditorGUILayout.EndHorizontal();
-            
+
             // Filters
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Filter:", GUILayout.Width(80));
-            
+
             var newShowArrayKeys = EditorGUILayout.ToggleLeft("Array Keys", Data.ShowArrayKeysOnly, GUILayout.Width(100));
             var newShowStringKeys = EditorGUILayout.ToggleLeft("String Keys", Data.ShowStringKeysOnly, GUILayout.Width(100));
             Data.SortKeysByName = EditorGUILayout.ToggleLeft("Sort by Name", Data.SortKeysByName, GUILayout.Width(100));
-            
+
             if (newShowArrayKeys != Data.ShowArrayKeysOnly)
             {
                 Data.ShowArrayKeysOnly = newShowArrayKeys;
                 Data.ShowStringKeysOnly = false;
             }
-            
+
             if (newShowStringKeys != Data.ShowStringKeysOnly)
             {
                 Data.ShowStringKeysOnly = newShowStringKeys;
                 Data.ShowArrayKeysOnly = false;
             }
-            
+
             EditorGUILayout.EndHorizontal();
-            
+
             // Count
             var totalKeys = Data.Keys.Count;
             var filteredCount = Data.GetFilteredKeys().Count();
@@ -112,57 +111,57 @@ namespace PicoShot.Localization.Editor.Tabs
             EditorGUILayout.LabelField("Found:", GUILayout.Width(80));
             EditorGUILayout.LabelField($"{filteredCount} / {totalKeys} keys", EditorStyles.boldLabel);
             EditorGUILayout.EndHorizontal();
-            
+
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawKeysListPanel()
         {
             EditorGUILayout.BeginVertical("box", GUILayout.Width(Data.KeysListPanelWidth));
             EditorGUILayout.LabelField("Keys", EditorStyles.boldLabel);
-            
+
             var filteredKeys = Data.GetFilteredKeys().ToList();
             int totalKeyCount = filteredKeys.Count;
-            
+
             float viewportHeight = WindowPosition.height - 300f;
             int maxVisibleItems = Mathf.CeilToInt(viewportHeight / LanguageEditorData.KeyItemHeight) + 1;
-            
+
             Rect scrollViewRect = EditorGUILayout.GetControlRect(
                 false,
                 viewportHeight,
                 GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(false)
             );
-            
+
             float totalContentHeight = totalKeyCount * LanguageEditorData.KeyItemHeight;
             Data.KeysListScroll = GUI.BeginScrollView(
                 scrollViewRect,
                 Data.KeysListScroll,
                 new Rect(0, 0, scrollViewRect.width - 20, totalContentHeight)
             );
-            
+
             if (totalKeyCount > 0)
             {
                 int startIndex = Mathf.FloorToInt(Data.KeysListScroll.y / LanguageEditorData.KeyItemHeight);
                 startIndex = Mathf.Max(0, startIndex);
                 int endIndex = Mathf.Min(startIndex + maxVisibleItems, totalKeyCount);
-                
+
                 for (int i = startIndex; i < endIndex; i++)
                 {
                     DrawKeyListItem(filteredKeys[i], i, scrollViewRect.width);
                 }
             }
-            
+
             GUI.EndScrollView();
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawKeyListItem(string key, int index, float width)
         {
             Rect keyRect = new Rect(4, index * LanguageEditorData.KeyItemHeight, width - 8, LanguageEditorData.KeyItemHeight);
-            
+
             GUIStyle keyStyle = GetKeyButtonStyle(key == Data.SelectedKey);
-            
+
             string typeIndicator = "Aa";
             if (Data.LanguageData.TryGetValue(key, out var keyData) && keyData.Count > 0)
             {
@@ -170,15 +169,15 @@ namespace PicoShot.Localization.Editor.Tabs
                 if (firstValue is List<string> || firstValue is string[])
                     typeIndicator = "[ ]";
             }
-            
+
             string buttonLabel = $"<color=#888888>{typeIndicator}</color> {key}";
-            
+
             if (GUI.Button(keyRect, buttonLabel, keyStyle))
             {
                 Data.SelectedKey = key;
             }
         }
-        
+
         private void DrawResizeHandle()
         {
             const float handleWidth = 5f;
@@ -188,14 +187,14 @@ namespace PicoShot.Localization.Editor.Tabs
                 GUILayout.Width(handleWidth),
                 GUILayout.ExpandHeight(false)
             );
-            
+
             EditorGUIUtility.AddCursorRect(handleRect, MouseCursor.ResizeHorizontal);
-            
+
             if (Event.current.type == EventType.MouseDown && handleRect.Contains(Event.current.mousePosition))
             {
                 _isResizingKeysList = true;
             }
-            
+
             if (_isResizingKeysList)
             {
                 if (Event.current.type == EventType.MouseUp || Event.current.type == EventType.MouseLeaveWindow)
@@ -214,38 +213,38 @@ namespace PicoShot.Localization.Editor.Tabs
                     Editor.Repaint();
                 }
             }
-            
+
             Color prevColor = GUI.color;
             GUI.color = new Color(0.5f, 0.5f, 0.5f, 0.3f);
             GUI.DrawTexture(handleRect, EditorGUIUtility.whiteTexture);
             GUI.color = prevColor;
         }
-        
+
         private void DrawKeyDetailsPanel()
         {
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
-            
+
             if (Data.LastSelectedKey != Data.SelectedKey)
             {
                 Data.ClearKeyHint();
                 Data.LastSelectedKey = Data.SelectedKey;
             }
-            
+
             if (!string.IsNullOrEmpty(Data.SelectedKey))
             {
                 EditorGUILayout.LabelField($"Key Details: {Data.SelectedKey}", EditorStyles.boldLabel);
                 Data.KeyDetailsScroll = EditorGUILayout.BeginScrollView(Data.KeyDetailsScroll, GUILayout.ExpandHeight(true));
-                
+
                 DrawTranslationHintField();
                 EditorGUILayout.Space(5);
-                
+
                 if (Data.LanguageData.TryGetValue(Data.SelectedKey, out var text))
                 {
                     if (LanguageEditorData.IsArrayKey(text))
                         DrawArrayKeyContent();
                     else
                         DrawStringKeyContent();
-                    
+
                     EditorGUILayout.Space();
                     DrawKeyActionButtons();
                 }
@@ -253,34 +252,34 @@ namespace PicoShot.Localization.Editor.Tabs
                 {
                     EditorGUILayout.LabelField("Selected key not found.");
                 }
-                
+
                 EditorGUILayout.EndScrollView();
             }
             else
             {
                 DrawHelpBox("Select a key from the list to view and edit its details.");
             }
-            
+
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawTranslationHintField()
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.LabelField("Translation Hint (for DeepL):", EditorStyles.miniBoldLabel);
-            
+
             GUI.SetNextControlName($"TranslationHint_{Data.SelectedKey}");
             Data.CurrentKeyHint = EditorGUILayout.TextArea(Data.CurrentKeyHint, GUILayout.MinHeight(40));
-            
+
             if (string.IsNullOrEmpty(Data.CurrentKeyHint))
             {
                 EditorGUILayout.LabelField($"Example: '{Data.SelectedKey}' should be translated as verb not noun",
                     EditorStyles.miniLabel);
             }
-            
+
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawStringKeyContent()
         {
             EditorGUILayout.BeginVertical("box");
@@ -289,14 +288,14 @@ namespace PicoShot.Localization.Editor.Tabs
                 EditorGUILayout.BeginVertical();
                 var langName = LanguageDefinitions.GetDisplayName(lang);
                 EditorGUILayout.LabelField($"{langName}:", GUILayout.Width(120));
-                
+
                 var currentText = Data.LanguageData[Data.SelectedKey][lang]?.ToString() ?? "";
                 Rect textRect = EditorGUILayout.GetControlRect();
-                
+
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUI.TextField(textRect, currentText);
                 EditorGUI.EndDisabledGroup();
-                
+
                 if (Event.current.type == EventType.MouseDown &&
                     Event.current.clickCount == 2 &&
                     textRect.Contains(Event.current.mousePosition))
@@ -309,51 +308,51 @@ namespace PicoShot.Localization.Editor.Tabs
                     });
                     Event.current.Use();
                 }
-                
+
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawArrayKeyContent()
         {
             EditorGUILayout.BeginVertical("box");
-            
+
             var firstValue = Data.GetFirstValue(Data.SelectedKey);
             var array = firstValue as List<string> ?? new List<string>();
             DrawArrayElements(array);
-            
+
             EditorGUILayout.Space(5);
-            
+
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Add New Element", GUILayout.Width(120), GUILayout.Height(25)))
             {
                 Data.AddArrayElement(Data.SelectedKey);
             }
-            
+
             if (GUILayout.Button("Clear Empty Elements", GUILayout.Width(140), GUILayout.Height(25)))
             {
                 Data.ClearEmptyArrayElements(Data.SelectedKey);
             }
             EditorGUILayout.EndHorizontal();
-            
+
             EditorGUILayout.EndVertical();
         }
-        
+
         private void DrawArrayElements(List<string> array)
         {
             bool elementDeleted = false;
             int deleteIndex = -1;
-            
+
             for (int i = 0; i < array.Count; i++)
             {
                 if (elementDeleted) break;
-                
+
                 EditorGUILayout.BeginVertical("box");
-                
+
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField($"Element {i}", EditorStyles.boldLabel);
-                
+
                 GUI.backgroundColor = Color.red;
                 if (GUILayout.Button("×", GUILayout.Width(25)) && EditorUtility.DisplayDialog("Delete Element",
                         $"Are you sure you want to delete element {i}?", "Yes", "No"))
@@ -361,36 +360,36 @@ namespace PicoShot.Localization.Editor.Tabs
                     deleteIndex = i;
                     elementDeleted = true;
                 }
-                
+
                 GUI.backgroundColor = Color.white;
                 EditorGUILayout.EndHorizontal();
-                
+
                 DrawArrayElementTranslations(i);
-                
+
                 EditorGUILayout.EndVertical();
             }
-            
+
             if (elementDeleted && deleteIndex >= 0)
             {
                 Data.RemoveArrayElement(Data.SelectedKey, deleteIndex);
             }
         }
-        
+
         private void DrawArrayElementTranslations(int index)
         {
             foreach (var lang in Data.LanguageCodes)
             {
                 var langName = LanguageDefinitions.GetDisplayName(lang);
                 EditorGUILayout.LabelField($"{langName}:", GUILayout.Width(120));
-                
+
                 var langArray = (List<string>)Data.LanguageData[Data.SelectedKey][lang];
                 var currentText = langArray[index] ?? "";
-                
+
                 Rect textRect = EditorGUILayout.GetControlRect();
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUI.TextField(textRect, currentText);
                 EditorGUI.EndDisabledGroup();
-                
+
                 if (Event.current.type == EventType.MouseDown &&
                     Event.current.clickCount == 2 &&
                     textRect.Contains(Event.current.mousePosition))
@@ -406,86 +405,86 @@ namespace PicoShot.Localization.Editor.Tabs
                 }
             }
         }
-        
+
         private void DrawKeyActionButtons()
         {
             EditorGUILayout.BeginHorizontal();
-            
+
             if (GUILayout.Button("Rename", GUILayout.Width(80)))
                 RenameKey();
-            
+
             if (GUILayout.Button("Translation Options", GUILayout.Width(120)))
                 ShowTranslationOptionsMenu();
-            
+
             if (GUILayout.Button("Copy Key", GUILayout.Width(80)))
                 ShowCopyKeyMenu();
-            
+
             if (GUILayout.Button("JSON", GUILayout.Width(80)))
                 ShowJsonOptionsMenu();
-            
+
             if (GUILayout.Button("Clear", GUILayout.Width(80)))
                 ClearKeyData();
-            
+
             if (GUILayout.Button("Delete", GUILayout.Width(80)))
                 ConfirmDeleteKey();
-            
+
             EditorGUILayout.EndHorizontal();
         }
-        
+
         private void ShowTranslationOptionsMenu()
         {
             GenericMenu menu = new GenericMenu();
-            
+
             menu.AddItem(new GUIContent("Translate with DeepL"), false,
                 () => { _ = _translationService.TranslateAndFill(Data.SelectedKey); });
-            
+
             menu.AddItem(new GUIContent("Translate with Gemini (soon)"), false, null);
-            
+
             menu.ShowAsContext();
         }
-        
+
         private void ShowCopyKeyMenu()
         {
             GenericMenu menu = new GenericMenu();
-            
+
             menu.AddItem(new GUIContent("Copy Key Name"), false, () =>
             {
                 EditorGUIUtility.systemCopyBuffer = Data.SelectedKey;
                 Editor.ShowNotification(new GUIContent($"Key '{Data.SelectedKey}' copied to clipboard!"));
             });
-            
+
             menu.AddItem(new GUIContent("Copy with GetText()"), false, () =>
             {
                 EditorGUIUtility.systemCopyBuffer = $"LocalizationManager.GetText(\"{Data.SelectedKey}\")";
                 Editor.ShowNotification(new GUIContent("GetText() snippet copied!"));
             });
-            
+
             menu.AddItem(new GUIContent("Copy with GetArray()"), false, () =>
             {
                 EditorGUIUtility.systemCopyBuffer = $"LocalizationManager.GetArray(\"{Data.SelectedKey}\")";
                 Editor.ShowNotification(new GUIContent("GetArray() snippet copied!"));
             });
-            
+
             menu.ShowAsContext();
         }
-        
+
         private void ShowJsonOptionsMenu()
         {
             GenericMenu menu = new GenericMenu();
-            
+
             menu.AddItem(new GUIContent("Copy as JSON"), false, () =>
             {
                 _jsonService.CopyKeyAsJson(Data.SelectedKey, Editor);
             });
-            
+
             menu.AddItem(new GUIContent("Paste from JSON"), false, () =>
             {
                 _jsonService.PasteKeyFromJson(Data.SelectedKey, Editor);
             });
-            
+
             menu.ShowAsContext();
         }
-        
+
         private void AddKey(bool isArray)
         {
             if (Data.AddKey(_newKey, isArray))
@@ -498,7 +497,7 @@ namespace PicoShot.Localization.Editor.Tabs
                 Debug.LogWarning($"Key '{_newKey}' already exists or is empty.");
             }
         }
-        
+
         private void RenameKey()
         {
             var key = Data.SelectedKey;
@@ -509,30 +508,30 @@ namespace PicoShot.Localization.Editor.Tabs
                     EditorUtility.DisplayDialog("Error", "Key name cannot be empty.", "OK");
                     return;
                 }
-                
+
                 if (Data.Keys.Contains(newKey))
                 {
                     EditorUtility.DisplayDialog("Error", $"Key '{newKey}' already exists.", "OK");
                     return;
                 }
-                
+
                 Data.RenameKey(key, newKey);
                 Editor.Repaint();
             });
         }
-        
+
         private void ClearKeyData()
         {
             if (!EditorUtility.DisplayDialog("Clear Key Data",
                     $"Are you sure you want to clear all translations for key '{Data.SelectedKey}'?\nThis cannot be undone!",
                     "Yes, Clear", "Cancel"))
                 return;
-            
+
             Data.ClearKeyTranslations(Data.SelectedKey);
             Editor.ShowNotification(new GUIContent("All translations cleared."));
             Editor.Repaint();
         }
-        
+
         private void ConfirmDeleteKey()
         {
             if (EditorUtility.DisplayDialog("Delete Key",
@@ -543,14 +542,14 @@ namespace PicoShot.Localization.Editor.Tabs
                 Editor.Repaint();
             }
         }
-        
+
         public override bool HandleKeyboardInput(Event evt)
         {
             if (evt.type != EventType.KeyDown || string.IsNullOrEmpty(Data.SelectedKey)) return false;
-            
+
             bool ctrlPressed = (evt.modifiers & EventModifiers.Control) != 0;
             var index = Data.Keys.IndexOf(Data.SelectedKey);
-            
+
             switch (evt.keyCode)
             {
                 case KeyCode.UpArrow:
@@ -569,7 +568,7 @@ namespace PicoShot.Localization.Editor.Tabs
                     evt.Use();
                     Editor.Repaint();
                     return true;
-                    
+
                 case KeyCode.DownArrow:
                     if (ctrlPressed && index < Data.Keys.Count - 1)
                     {
@@ -586,7 +585,7 @@ namespace PicoShot.Localization.Editor.Tabs
                     evt.Use();
                     Editor.Repaint();
                     return true;
-                    
+
                 case KeyCode.Backspace:
                 case KeyCode.Delete:
                     if (_pendingDelete) return false;
@@ -603,7 +602,7 @@ namespace PicoShot.Localization.Editor.Tabs
                     };
                     evt.Use();
                     return true;
-                    
+
                 case KeyCode.T:
                     if (ctrlPressed)
                     {
@@ -612,7 +611,7 @@ namespace PicoShot.Localization.Editor.Tabs
                         return true;
                     }
                     break;
-                    
+
                 case KeyCode.R:
                     if (ctrlPressed)
                     {
@@ -621,7 +620,7 @@ namespace PicoShot.Localization.Editor.Tabs
                         return true;
                     }
                     break;
-                    
+
                 case KeyCode.C:
                     if (ctrlPressed)
                     {
@@ -631,28 +630,28 @@ namespace PicoShot.Localization.Editor.Tabs
                         return true;
                     }
                     break;
-                    
+
                 case KeyCode.Escape:
                     Data.SelectedKey = null;
                     evt.Use();
                     Editor.Repaint();
                     return true;
             }
-            
+
             return false;
         }
-        
+
         private static void OpenTextEditor(string text, System.Action<string> onSave)
         {
             LocalizationTextEditorPopup.Open(text, onSave);
         }
-        
+
         private static GUIStyle GetKeyButtonStyle(bool isSelected)
         {
             Texture2D transparentTexture = new Texture2D(1, 1);
             transparentTexture.SetPixel(0, 0, new Color(0, 0, 0, 0));
             transparentTexture.Apply();
-            
+
             GUIStyle style = new GUIStyle(EditorStyles.miniButton)
             {
                 alignment = TextAnchor.MiddleLeft,
@@ -667,7 +666,7 @@ namespace PicoShot.Localization.Editor.Tabs
                 active = { textColor = Color.green },
                 richText = true
             };
-            
+
             return style;
         }
     }

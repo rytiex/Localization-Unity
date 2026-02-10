@@ -20,11 +20,11 @@ namespace PicoShot.Localization
     {
         // Data
         private LanguageEditorData _data;
-        
+
         // Tabs
         private Dictionary<EditorTab, ILocalizationEditorTab> _tabs;
         private EditorTab _currentTab = EditorTab.Languages;
-        
+
         private enum EditorTab
         {
             Languages,
@@ -34,37 +34,37 @@ namespace PicoShot.Localization
             Debug,
             Config
         }
-        
+
         #region Unity Entry Points
-        
+
         [MenuItem("Tools/Localization/Language Editor")]
         public static void OpenWindow()
         {
             GetWindow<LocalizationEditor>("Language Editor");
         }
-        
+
         private void OnEnable()
         {
             _data = new LanguageEditorData();
             InitializeTabs();
             LoadLanguages();
-            
+
             CompilationPipeline.compilationStarted += OnBeforeCompile;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
-        
+
         private void OnDisable()
         {
             UnregisterEventHandlers();
             CompilationPipeline.compilationStarted -= OnBeforeCompile;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
         }
-        
+
         private void OnBeforeCompile(object _)
         {
             PromptAutoSave("before compiling");
         }
-        
+
         private void OnPlayModeChanged(PlayModeStateChange state)
         {
             switch (state)
@@ -77,61 +77,61 @@ namespace PicoShot.Localization
                     break;
             }
         }
-        
+
         private void OnDestroy()
         {
             PromptAutoSave("before closing the editor");
         }
-        
+
         private void OnGUI()
         {
             DrawHeader();
             DrawTabs();
-            
+
             EditorGUILayout.Space();
-            
+
             // Draw current tab content
             if (_tabs.TryGetValue(_currentTab, out var tab))
             {
                 tab.Draw();
             }
-            
+
             EditorGUILayout.Space();
             DrawSaveButton();
-            
+
             HandleKeyboardInput();
         }
-        
+
         #endregion
-        
+
         #region UI Components
-        
+
         private static void DrawHeader()
         {
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Language Manager", EditorStyles.boldLabel);
             EditorGUILayout.Space();
         }
-        
+
         private void DrawTabs()
         {
             EditorGUILayout.BeginHorizontal();
-            
+
             foreach (EditorTab tab in Enum.GetValues(typeof(EditorTab)))
             {
                 bool isActive = _currentTab == tab;
                 GUI.backgroundColor = isActive ? Color.gray : Color.white;
-                
+
                 if (GUILayout.Button(GetTabDisplayName(tab), EditorStyles.toolbarButton))
                 {
                     SwitchToTab(tab);
                 }
             }
-            
+
             GUI.backgroundColor = Color.white;
             EditorGUILayout.EndHorizontal();
         }
-        
+
         private void DrawSaveButton()
         {
             EditorGUILayout.Space();
@@ -142,11 +142,11 @@ namespace PicoShot.Localization
             }
             GUI.backgroundColor = Color.white;
         }
-        
+
         #endregion
-        
+
         #region Tab Management
-        
+
         private void InitializeTabs()
         {
             _tabs = new Dictionary<EditorTab, ILocalizationEditorTab>
@@ -159,29 +159,29 @@ namespace PicoShot.Localization
                 { EditorTab.Config, new ConfigTab(this, _data) }
             };
         }
-        
+
         private void SwitchToTab(EditorTab newTab)
         {
             if (_currentTab == newTab) return;
-            
+
             // Exit current tab
             if (_tabs.TryGetValue(_currentTab, out var currentTabInstance))
             {
                 currentTabInstance.OnExit();
             }
-            
+
             _currentTab = newTab;
-            
+
             // Enter new tab
             if (_tabs.TryGetValue(newTab, out var newTabInstance))
             {
                 newTabInstance.OnEnter();
             }
-            
+
             GUI.FocusControl(null);
             Repaint();
         }
-        
+
         private static string GetTabDisplayName(EditorTab tab)
         {
             return tab switch
@@ -195,17 +195,17 @@ namespace PicoShot.Localization
                 _ => tab.ToString()
             };
         }
-        
+
         #endregion
-        
+
         #region Input Handling
-        
+
         private void HandleKeyboardInput()
         {
             if (Event.current.type != EventType.KeyDown) return;
-            
+
             bool ctrlPressed = (Event.current.modifiers & EventModifiers.Control) != 0;
-            
+
             // Global shortcuts
             if (ctrlPressed && Event.current.keyCode == KeyCode.S)
             {
@@ -213,7 +213,7 @@ namespace PicoShot.Localization
                 Event.current.Use();
                 return;
             }
-            
+
             // Let current tab handle its shortcuts
             if (_tabs.TryGetValue(_currentTab, out var tab))
             {
@@ -223,11 +223,11 @@ namespace PicoShot.Localization
                 }
             }
         }
-        
+
         #endregion
-        
+
         #region Data Management
-        
+
         /// <summary>
         /// Loads all language data from BLOC files.
         /// </summary>
@@ -236,41 +236,41 @@ namespace PicoShot.Localization
             try
             {
                 string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
-                
+
                 _data.Reset();
                 _data.LanguageCodes.Add(defaultLang);
-                
+
                 if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
                     Debug.Log("[LocalizationEditor] Languages directory not found. Creating new data.");
                     return;
                 }
-                
+
                 var blocFiles = Directory.GetFiles(LocalizationManager.LanguagesPath, "*.bloc", SearchOption.TopDirectoryOnly);
-                
+
                 foreach (var file in blocFiles)
                 {
                     try
                     {
                         var localeData = LocalizationManager.LoadLocaleFromFile(file);
                         string langCode = Path.GetFileNameWithoutExtension(file);
-                        
+
                         if (!_data.LanguageCodes.Contains(langCode))
                         {
                             _data.LanguageCodes.Add(langCode);
                         }
-                        
+
                         foreach (var entry in localeData.Translations)
                         {
                             string key = entry.Key;
                             object value = entry.Value;
-                            
+
                             if (!_data.Keys.Contains(key))
                             {
                                 _data.Keys.Add(key);
                                 _data.LanguageData[key] = new Dictionary<string, object>();
                             }
-                            
+
                             _data.LanguageData[key][langCode] = value;
                         }
                     }
@@ -279,7 +279,7 @@ namespace PicoShot.Localization
                         Debug.LogError($"[LocalizationEditor] Error loading file '{file}': {ex.Message}");
                     }
                 }
-                
+
                 // Ensure all keys have entries for all languages
                 SyncMissingLanguageEntries();
                 SyncProtectionOnLoad();
@@ -290,7 +290,7 @@ namespace PicoShot.Localization
                 _data.Reset();
             }
         }
-        
+
         /// <summary>
         /// Fills in missing language entries for all keys.
         /// </summary>
@@ -300,7 +300,7 @@ namespace PicoShot.Localization
             {
                 var firstValue = LanguageEditorData.GetFirstValue(_data.LanguageData[key]);
                 bool isArray = firstValue is List<string>;
-                
+
                 foreach (var lang in _data.LanguageCodes)
                 {
                     if (!_data.LanguageData[key].ContainsKey(lang))
@@ -317,7 +317,7 @@ namespace PicoShot.Localization
                 }
             }
         }
-        
+
         /// <summary>
         /// Syncs protection settings with loaded languages.
         /// </summary>
@@ -325,7 +325,7 @@ namespace PicoShot.Localization
         {
             var config = LocalizationConfigProvider.Config;
             bool changed = false;
-            
+
             foreach (var lang in _data.LanguageCodes)
             {
                 if (!config.SelectedLanguages.Contains(lang))
@@ -334,13 +334,13 @@ namespace PicoShot.Localization
                     changed = true;
                 }
             }
-            
+
             if (changed)
             {
                 LocalizationConfigProvider.SaveConfig();
             }
         }
-        
+
         /// <summary>
         /// Saves all language data to BLOC files.
         /// </summary>
@@ -350,14 +350,14 @@ namespace PicoShot.Localization
             {
                 // Apply compression settings from config
                 ApplyCompressionSettings();
-                
+
                 if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
                     Directory.CreateDirectory(LocalizationManager.LanguagesPath);
                 }
-                
+
                 long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                
+
                 foreach (var lang in _data.LanguageCodes)
                 {
                     var localeData = new LocaleData
@@ -366,7 +366,7 @@ namespace PicoShot.Localization
                         Timestamp = timestamp,
                         Translations = new Dictionary<string, object>()
                     };
-                    
+
                     foreach (var key in _data.Keys)
                     {
                         if (_data.LanguageData[key].TryGetValue(lang, out var value))
@@ -374,20 +374,20 @@ namespace PicoShot.Localization
                             localeData.Translations[key] = value;
                         }
                     }
-                    
+
                     string filePath = LocalizationManager.GetLanguageFilePath(lang);
                     LocalizationManager.SaveLocaleToFile(filePath, localeData);
                 }
-                
+
                 // Sync protection settings
                 var config = LocalizationConfigProvider.Config;
                 config.SetSelectedLanguages(new List<string>(_data.LanguageCodes));
                 LocalizationConfigProvider.SaveConfig();
-                
+
                 _data.HasUnsavedChanges = false;
                 ShowNotification(new GUIContent("Language data saved successfully!"));
                 Debug.Log("[LocalizationEditor] Language data saved.");
-                
+
                 // Reload runtime if initialized
                 if (LocalizationManager.IsInitialized)
                 {
@@ -401,7 +401,7 @@ namespace PicoShot.Localization
                 Debug.LogError($"[LocalizationEditor] Error saving language data: {ex}");
             }
         }
-        
+
         /// <summary>
         /// Applies compression settings from config to the serializer.
         /// </summary>
@@ -416,14 +416,14 @@ namespace PicoShot.Localization
                 _ => System.IO.Compression.CompressionLevel.Optimal
             };
         }
-        
+
         /// <summary>
         /// Shows a dialog to save unsaved changes.
         /// </summary>
         private void PromptAutoSave(string context)
         {
             if (!_data.HasUnsavedChanges) return;
-            
+
             if (EditorUtility.DisplayDialog("Unsaved Changes",
                     $"You have unsaved changes. Would you like to save them {context}?",
                     "Save", "Don't Save"))
@@ -435,7 +435,7 @@ namespace PicoShot.Localization
                 _data.HasUnsavedChanges = false;
             }
         }
-        
+
         /// <summary>
         /// Deletes all language data permanently.
         /// </summary>
@@ -445,13 +445,13 @@ namespace PicoShot.Localization
                     "Are you sure you want to delete all language data?\n\n" +
                     "This action cannot be undone!",
                     "Yes, Delete All", "Cancel")) return;
-            
+
             var config = LocalizationConfigProvider.Config;
             string defaultLang = config.DefaultLanguage;
-            
+
             _data.Reset();
             _data.LanguageCodes.Add(defaultLang);
-            
+
             if (Directory.Exists(LocalizationManager.LanguagesPath))
             {
                 var files = Directory.GetFiles(LocalizationManager.LanguagesPath, "*.bloc");
@@ -460,28 +460,28 @@ namespace PicoShot.Localization
                     File.Delete(file);
                 }
             }
-            
+
             config.SetSelectedLanguages(new List<string> { defaultLang });
             LocalizationConfigProvider.SaveConfig();
-            
+
             SaveLanguages();
             Repaint();
         }
-        
+
         private static void UnregisterEventHandlers()
         {
             LocalizationManager.Dispose();
         }
-        
+
         #endregion
-        
+
         #region Public API for Tabs
-        
+
         /// <summary>
         /// Gets the current editor data. Used by tabs.
         /// </summary>
         public LanguageEditorData GetData() => _data;
-        
+
         #endregion
     }
 }
