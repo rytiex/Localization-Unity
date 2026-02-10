@@ -472,7 +472,12 @@ namespace PicoShot.Localization.Data
             {
                 crc ^= data[i];
                 for (int j = 0; j < 8; j++)
-                    crc = (crc >> 1) ^ (polynomial & ~(crc & 1));
+                {
+                    if ((crc & 1) != 0)
+                        crc = (crc >> 1) ^ polynomial;
+                    else
+                        crc >>= 1;
+                }
             }
 
             return ~crc;
