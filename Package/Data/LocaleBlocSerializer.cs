@@ -77,11 +77,11 @@ namespace PicoShot.Localization.Data
                     using var resultMs = new MemoryStream(8 + compressed.Length);
                     using var resultWriter = new BinaryWriter(resultMs, Encoding.UTF8);
 
+                    // Write header with uncompressed size in the stringPoolOffset field
                     WriteHeader(resultWriter, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
                         (uint)uncompressedData.Length, true);
 
-                    resultWriter.Write(uncompressedData.Length);
-
+                    // Write compressed data directly after header (no extra size field needed - it's in header)
                     resultWriter.Write(compressed);
 
                     return resultMs.ToArray();
