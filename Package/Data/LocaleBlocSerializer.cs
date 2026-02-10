@@ -15,6 +15,7 @@ namespace PicoShot.Localization.Data
     {
         private static readonly byte[] Magic = { 0x42, 0x4C, 0x4F, 0x43 }; // "BLOC"
         private const int Version = 1;
+        private const int LanguageCodeSize = 12; // 12 bytes to support codes like "zh-hans", "zh-hant", "sr-Latn"
 
         // Flags
         private const ushort FlagCompressed = 0x01;
@@ -40,13 +41,14 @@ namespace PicoShot.Localization.Data
             // Calculate sizes
             int entryTableSize = CalculateEntryTableSize(data.Translations);
             int stringPoolSize = CalculateStringPoolSize(stringPool);
-            int uncompressedSize = 24 + entryTableSize + stringPoolSize + 4; // header + table + pool + footer
+            int headerSize = 32; // Magic(4) + Version(2) + Flags(2) + LangCode(12) + EntryCount(4) + StringCount(4) + PoolOffset(4)
+            int uncompressedSize = headerSize + entryTableSize + stringPoolSize + 4; // header + table + pool + footer
 
             byte[] uncompressedData;
             using (var ms = new MemoryStream(uncompressedSize))
             using (var writer = new BinaryWriter(ms, Encoding.UTF8))
             {
-                int stringPoolOffset = 24 + entryTableSize;
+                int stringPoolOffset = headerSize + entryTableSize;
 
                 WriteHeader(writer, data.LanguageCode, (uint)data.Translations.Count, (uint)stringPool.Count,
                     (uint)stringPoolOffset, false);
@@ -94,13 +96,18 @@ namespace PicoShot.Localization.Data
         /// </summary>
         public static LocaleData Deserialize(byte[] data)
         {
-            if (data == null || data.Length < 28)
+            if (data == null || data.Length < 36) // Header (32) + CRC32 (4)
                 throw new ArgumentException("Data too short", nameof(data));
 
             // Verify magic
             if (data[0] != Magic[0] || data[1] != Magic[1] ||
                 data[2] != Magic[2] || data[3] != Magic[3])
                 throw new InvalidDataException("Invalid BLOC magic");
+
+            // Check version
+            ushort version = BitConverter.ToUInt16(data, 4);
+            if (version != Version)
+                throw new InvalidDataException($"Version {version} not supported");
 
             // Check compression flag
             ushort flags = BitConverter.ToUInt16(data, 6);
@@ -110,14 +117,14 @@ namespace PicoShot.Localization.Data
 
             if (isCompressed)
             {
-                if (data.Length < 32)
+                if (data.Length < 36)
                     throw new InvalidDataException("Compressed data too short");
 
-                int uncompressedSize = BitConverter.ToInt32(data, 24);
+                int uncompressedSize = BitConverter.ToInt32(data, 28);
                 if (uncompressedSize < 0 || uncompressedSize > 100_000_000) // 100MB sanity check
                     throw new InvalidDataException("Invalid uncompressed size");
 
-                uncompressedData = DecompressData(data, 28, data.Length - 28, uncompressedSize);
+                uncompressedData = DecompressData(data, 32, data.Length - 32, uncompressedSize);
             }
             else
             {
@@ -130,11 +137,8 @@ namespace PicoShot.Localization.Data
             // Read header
             var header = ReadHeader(reader);
 
-            if (header.Version != Version)
-                throw new InvalidDataException($"Version {header.Version} not supported");
-
             // Read entry table
-            ms.Position = 24; // After header
+            ms.Position = 32; // After header
             var translations = ReadEntryTable(reader, header.EntryCount, header.StringPoolOffset, header.StringCount);
 
             return new LocaleData
@@ -203,7 +207,7 @@ namespace PicoShot.Localization.Data
 
         #endregion
 
-        #region Header (24 bytes)
+        #region Header (32 bytes)
 
         private static void WriteHeader(BinaryWriter writer, string languageCode,
             uint entryCount, uint stringCount, uint stringPoolOffset, bool compressed)
@@ -214,16 +218,16 @@ namespace PicoShot.Localization.Data
             writer.Write((ushort)Version);                // 4-5: Version
             writer.Write(flags);                          // 6-7: Flags
 
-            // Language code (4 bytes, null-padded ASCII)
-            byte[] langBytes = new byte[4];
+            // Language code (12 bytes, null-padded ASCII) - supports codes like "zh-hans", "zh-hant", "sr-Latn"
+            byte[] langBytes = new byte[LanguageCodeSize];
             byte[] inputBytes = Encoding.ASCII.GetBytes(languageCode ?? "en");
-            int copyLen = Math.Min(inputBytes.Length, 4);
+            int copyLen = Math.Min(inputBytes.Length, LanguageCodeSize);
             Array.Copy(inputBytes, langBytes, copyLen);
-            writer.Write(langBytes);                      // 8-11: Language code
+            writer.Write(langBytes);                      // 8-19: Language code
 
-            writer.Write(entryCount);                     // 12-15: Entry count
-            writer.Write(stringCount);                    // 16-19: String count
-            writer.Write(stringPoolOffset);               // 20-23: String pool offset (or uncompressed size if compressed)
+            writer.Write(entryCount);                     // 20-23: Entry count
+            writer.Write(stringCount);                    // 24-27: String count
+            writer.Write(stringPoolOffset);               // 28-31: String pool offset (or uncompressed size if compressed)
         }
 
         private static (ushort Version, string LanguageCode, uint EntryCount,
@@ -233,9 +237,10 @@ namespace PicoShot.Localization.Data
             ushort version = reader.ReadUInt16();
             reader.ReadBytes(2); // Skip flags
 
-            byte[] langBytes = reader.ReadBytes(4);
+            // Language code (12 bytes)
+            byte[] langBytes = reader.ReadBytes(LanguageCodeSize);
             int len = 0;
-            while (len < 4 && langBytes[len] != 0) len++;
+            while (len < LanguageCodeSize && langBytes[len] != 0) len++;
             string languageCode = Encoding.ASCII.GetString(langBytes, 0, len);
 
             uint entryCount = reader.ReadUInt32();
@@ -491,7 +496,9 @@ namespace PicoShot.Localization.Data
                     return false;
 
                 byte[] data = File.ReadAllBytes(path);
-                if (data.Length < 28) // Minimum: header (24) + CRC32 (4)
+                
+                // Minimum: header (32) + CRC32 (4) = 36
+                if (data.Length < 36)
                     return false;
 
                 // Verify magic
@@ -504,9 +511,9 @@ namespace PicoShot.Localization.Data
                 if (version != Version)
                     return false;
 
-                // Read language code
+                // Read language code (12 bytes at offset 8)
                 int langLen = 0;
-                while (langLen < 4 && data[8 + langLen] != 0) langLen++;
+                while (langLen < LanguageCodeSize && data[8 + langLen] != 0) langLen++;
                 languageCode = Encoding.ASCII.GetString(data, 8, langLen);
 
                 // Check compression flag
@@ -517,7 +524,7 @@ namespace PicoShot.Localization.Data
                 {
                     // For compressed files, we can't easily validate CRC without decompressing
                     // Just verify minimum size for compressed format
-                    if (data.Length < 32)
+                    if (data.Length < 40) // header (32) + uncompressed size (4) + some compressed data
                         return false;
                     return true; // Consider compressed files valid if header is OK
                 }
