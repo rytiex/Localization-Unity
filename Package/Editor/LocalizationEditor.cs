@@ -90,7 +90,6 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space();
 
-            // Draw current tab content
             if (_tabs.TryGetValue(_currentTab, out var tab))
             {
                 tab.Draw();
@@ -234,7 +233,6 @@ namespace PicoShot.Localization
                 string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
 
                 _data.Reset();
-                _data.LanguageCodes.Add(defaultLang);
 
                 if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
