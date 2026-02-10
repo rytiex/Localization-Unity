@@ -33,6 +33,7 @@ namespace PicoShot.Localization.Editor.Tabs
             using (BeginBox())
             {
                 DrawDefaultLanguageSection(config);
+                DrawCompressionSettings(config);
                 DrawProtectionSettings(config);
                 DrawDeepLSettings();
                 DrawFileOperations();
@@ -56,6 +57,33 @@ namespace PicoShot.Localization.Editor.Tabs
                 ShowDefaultLanguageDropdown(dropdownRect, config, currentDefault);
             }
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space();
+        }
+
+        private void DrawCompressionSettings(LocalizationConfig config)
+        {
+            EditorGUILayout.LabelField("File Compression", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Compression:", GUILayout.Width(120));
+            var newMode = (CompressionMode)EditorGUILayout.EnumPopup(config.CompressionMode);
+            if (newMode != config.CompressionMode)
+            {
+                config.SetCompressionMode(newMode);
+                LocalizationConfigProvider.SaveConfig();
+                GUI.changed = true;
+            }
+            EditorGUILayout.EndHorizontal();
+
+            string compressionHelp = config.CompressionMode switch
+            {
+                CompressionMode.Disabled => "No compression. Fastest save/load but largest file sizes.",
+                CompressionMode.Fastest => "Fast compression. Good for development with quick iteration times.",
+                CompressionMode.Optimal => "Best compression ratio. Smaller files but slower saves. Recommended for builds.",
+                _ => ""
+            };
+            EditorGUILayout.HelpBox(compressionHelp, MessageType.Info);
 
             EditorGUILayout.Space();
         }

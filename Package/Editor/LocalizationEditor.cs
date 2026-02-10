@@ -348,6 +348,9 @@ namespace PicoShot.Localization
         {
             try
             {
+                // Apply compression settings from config
+                ApplyCompressionSettings();
+                
                 if (!Directory.Exists(LocalizationManager.LanguagesPath))
                 {
                     Directory.CreateDirectory(LocalizationManager.LanguagesPath);
@@ -397,6 +400,21 @@ namespace PicoShot.Localization
                 EditorUtility.DisplayDialog("Error", $"Failed to save language data: {ex.Message}", "OK");
                 Debug.LogError($"[LocalizationEditor] Error saving language data: {ex}");
             }
+        }
+        
+        /// <summary>
+        /// Applies compression settings from config to the serializer.
+        /// </summary>
+        private static void ApplyCompressionSettings()
+        {
+            var config = LocalizationConfigProvider.Config;
+            LocaleBlocSerializer.CompressionLevel = config.CompressionMode switch
+            {
+                CompressionMode.Disabled => System.IO.Compression.CompressionLevel.NoCompression,
+                CompressionMode.Fastest => System.IO.Compression.CompressionLevel.Fastest,
+                CompressionMode.Optimal => System.IO.Compression.CompressionLevel.Optimal,
+                _ => System.IO.Compression.CompressionLevel.Optimal
+            };
         }
         
         /// <summary>

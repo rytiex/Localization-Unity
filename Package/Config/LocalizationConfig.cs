@@ -1,9 +1,31 @@
 using System;
 using System.Collections.Generic;
+using System.IO.Compression;
 using UnityEngine;
 
 namespace PicoShot.Localization.Config
 {
+    /// <summary>
+    /// Compression mode for BLOC files.
+    /// </summary>
+    public enum CompressionMode
+    {
+        /// <summary>
+        /// No compression. Fastest save/load but largest file size.
+        /// </summary>
+        Disabled,
+
+        /// <summary>
+        /// Fast compression. Good balance between speed and size.
+        /// </summary>
+        Fastest,
+
+        /// <summary>
+        /// Optimal compression. Best file size but slower save/load.
+        /// </summary>
+        Optimal
+    }
+
     /// <summary>
     /// Protection mode for localization files.
     /// </summary>
@@ -39,6 +61,10 @@ namespace PicoShot.Localization.Config
         [SerializeField]
         private string _defaultLanguage = "en";
 
+        [Tooltip("Compression mode for BLOC files")]
+        [SerializeField]
+        private CompressionMode _compressionMode = CompressionMode.Optimal;
+
         [Tooltip("Protection mode for localization files")]
         [SerializeField]
         private ProtectionMode _protectionMode = ProtectionMode.Disabled;
@@ -55,6 +81,11 @@ namespace PicoShot.Localization.Config
         /// Default language code.
         /// </summary>
         public string DefaultLanguage => _defaultLanguage;
+
+        /// <summary>
+        /// Current compression mode for BLOC files.
+        /// </summary>
+        public CompressionMode CompressionMode => _compressionMode;
 
         /// <summary>
         /// Current protection mode.
@@ -103,6 +134,14 @@ namespace PicoShot.Localization.Config
         public void SetDefaultLanguage(string languageCode)
         {
             _defaultLanguage = languageCode;
+        }
+
+        /// <summary>
+        /// Sets the compression mode (Editor only).
+        /// </summary>
+        public void SetCompressionMode(CompressionMode mode)
+        {
+            _compressionMode = mode;
         }
 
         /// <summary>
