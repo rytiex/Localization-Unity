@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
+using PicoShot.Localization.Data;
 using PicoShot.Localization.Editor.Data;
 
 namespace PicoShot.Localization.Editor.Services
@@ -265,6 +266,7 @@ namespace PicoShot.Localization.Editor.Services
 
                 int importedKeys = 0;
                 int importedLangs = 0;
+                int skippedLangs = 0;
 
                 foreach (var kvp in importData)
                 {
@@ -283,6 +285,12 @@ namespace PicoShot.Localization.Editor.Services
                     {
                         string lang = langKvp.Key;
                         object value = langKvp.Value;
+
+                        if (!LanguageDefinitions.IsValidLanguage(lang))
+                        {
+                            skippedLangs++;
+                            continue;
+                        }
 
                         if (!_data.LanguageCodes.Contains(lang))
                         {
@@ -307,9 +315,14 @@ namespace PicoShot.Localization.Editor.Services
 
                 _data.HasUnsavedChanges = true;
 
-                EditorUtility.DisplayDialog("Import Successful",
-                    $"Imported {importedKeys} new keys and {importedLangs} new languages.\n" +
-                    $"Total: {_data.Keys.Count} keys across {_data.LanguageCodes.Count} languages.", "OK");
+                string message = $"Imported {importedKeys} new keys and {importedLangs} new languages.\n" +
+                                 $"Total: {_data.Keys.Count} keys across {_data.LanguageCodes.Count} languages.";
+                if (skippedLangs > 0)
+                {
+                    message += $"\n\nSkipped {skippedLangs} unsupported language entries.";
+                    Debug.LogWarning($"[LocalizationEditor] Import skipped {skippedLangs} unsupported language entries.");
+                }
+                EditorUtility.DisplayDialog("Import Successful", message, "OK");
                 Debug.Log($"[LocalizationEditor] Imported from JSON: {path}");
             }
             catch (Exception ex)
