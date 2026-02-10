@@ -162,7 +162,7 @@ namespace PicoShot.Localization.Editor.Tabs
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("API Key:", GUILayout.Width(70));
-            Data.DeeplApiKey = EditorGUILayout.TextField(Data.DeeplApiKey);
+            Data.DeeplApiKey = EditorGUILayout.PasswordField(Data.DeeplApiKey);
 
             GUI.enabled = !string.IsNullOrEmpty(Data.DeeplApiKey);
             if (GUILayout.Button("Clear", GUILayout.Width(60)))
