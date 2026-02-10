@@ -565,6 +565,7 @@ namespace PicoShot.Localization.Editor.Tabs
                     {
                         Data.SelectedKey = Data.Keys[index - 1];
                     }
+                    AutoScrollToSelectedKey();
                     evt.Use();
                     Editor.Repaint();
                     return true;
@@ -582,6 +583,7 @@ namespace PicoShot.Localization.Editor.Tabs
                     {
                         Data.SelectedKey = Data.Keys[index + 1];
                     }
+                    AutoScrollToSelectedKey();
                     evt.Use();
                     Editor.Repaint();
                     return true;
@@ -639,6 +641,28 @@ namespace PicoShot.Localization.Editor.Tabs
             }
 
             return false;
+        }
+
+        private void AutoScrollToSelectedKey()
+        {
+            if (string.IsNullOrEmpty(Data.SelectedKey)) return;
+
+            var filteredKeys = Data.GetFilteredKeys().ToList();
+            int selectedIndex = filteredKeys.IndexOf(Data.SelectedKey);
+            if (selectedIndex < 0) return;
+
+            float viewportHeight = WindowPosition.height - 300f;
+            float itemTop = selectedIndex * LanguageEditorData.KeyItemHeight;
+            float itemBottom = itemTop + LanguageEditorData.KeyItemHeight;
+
+            if (itemTop < Data.KeysListScroll.y)
+            {
+                Data.KeysListScroll = new Vector2(Data.KeysListScroll.x, itemTop);
+            }
+            else if (itemBottom > Data.KeysListScroll.y + viewportHeight)
+            {
+                Data.KeysListScroll = new Vector2(Data.KeysListScroll.x, itemBottom - viewportHeight);
+            }
         }
 
         private static void OpenTextEditor(string text, System.Action<string> onSave)
