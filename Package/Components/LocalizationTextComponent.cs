@@ -171,13 +171,14 @@ namespace PicoShot.Localization
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            if (Application.isPlaying && _isInitialized)
+            if (!Application.isPlaying) return;
+            if (!_isInitialized) return;
+            UnityEditor.EditorApplication.delayCall += () =>
             {
-                UnityEditor.EditorApplication.delayCall += () =>
-                {
-                    if (this != null) UpdateText();
-                };
-            }
+                if (!Application.isPlaying) return;
+                if (!_isInitialized) return;
+                if (this != null) UpdateText();
+            };
         }
 #endif
 
