@@ -270,7 +270,7 @@ namespace PicoShot.Localization.Editor.Services
 
                 foreach (var kvp in importData)
                 {
-                    string key = kvp.Key;
+                    string key = kvp.Key.Trim();
                     var langData = kvp.Value;
 
                     if (!_data.LanguageData.TryGetValue(key, out var keyData))

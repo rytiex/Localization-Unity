@@ -255,6 +255,7 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public bool AddKey(string key, bool isArray)
         {
+            key = key?.Trim();
             if (string.IsNullOrEmpty(key) || Keys.Contains(key)) return false;
 
             Keys.Add(key);
@@ -289,6 +290,7 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public bool RenameKey(string oldKey, string newKey)
         {
+            newKey = newKey?.Trim();
             if (!Keys.Contains(oldKey) || Keys.Contains(newKey)) return false;
 
             int index = Keys.IndexOf(oldKey);
