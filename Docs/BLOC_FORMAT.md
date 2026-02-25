@@ -1,5 +1,5 @@
 <div dir="ltr" align=center>
-    
+
  [**Usage**](Usage.md) / [**Keybinds**](Keybinds.md) / [**BLOC Format**](BLOC_FORMAT.md) / [**FAQ**](FAQ.md) / [**How It Works**](HowItWorks.md)
 
 </div>
@@ -22,7 +22,7 @@ BLOC is a compact binary format designed specifically for localization data. It 
 
 ```
 ┌─────────────────┐
-│     Header      │ 24 bytes
+│     Header      │ 32 bytes
 ├─────────────────┤
 │   Entry Table   │ Variable (8+ bytes per entry)
 ├─────────────────┤
@@ -36,27 +36,27 @@ BLOC is a compact binary format designed specifically for localization data. It 
 
 ```
 ┌─────────────────┐
-│     Header      │ 24 bytes (FlagCompressed = 1)
-├─────────────────┤
-│ UncompressedSize│ 4 bytes
+│     Header      │ 32 bytes (FlagCompressed = 1)
 ├─────────────────┤
 │  CompressedData │ Variable (Deflate stream)
 └─────────────────┘
 ```
 
+**Note:** In compressed files, the `StringPoolOffset` field in the header stores the uncompressed size instead of an offset.
+
 ---
 
-## Header (24 bytes)
+## Header (32 bytes)
 
-| Offset | Size | Field            | Description                                                     |
-| ------ | ---- | ---------------- | --------------------------------------------------------------- |
-| 0x00   | 4    | Magic            | "BLOC" (0x42, 0x4C, 0x4F, 0x43)                                 |
-| 0x04   | 2    | Version          | Format version (currently 1)                                    |
-| 0x06   | 2    | Flags            | Bit flags (see below)                                           |
-| 0x08   | 4    | LanguageCode     | ISO language code (e.g., "en\0\0")                              |
-| 0x0C   | 4    | EntryCount       | Number of translation entries                                   |
-| 0x10   | 4    | StringCount      | Number of unique strings in pool                                |
-| 0x14   | 4    | StringPoolOffset | Byte offset to string pool (or uncompressed size if compressed) |
+| Offset | Size | Field            | Description                                              |
+| ------ | ---- | ---------------- | -------------------------------------------------------- |
+| 0x00   | 4    | Magic            | "BLOC" (0x42, 0x4C, 0x4F, 0x43)                          |
+| 0x04   | 2    | Version          | Format version (currently 1)                             |
+| 0x06   | 2    | Flags            | Bit flags (see below)                                    |
+| 0x08   | 12   | LanguageCode     | Language code (null-padded ASCII, e.g., "en\0\0...")     |
+| 0x14   | 4    | EntryCount       | Number of translation entries                            |
+| 0x18   | 4    | StringCount      | Number of unique strings in pool                         |
+| 0x1C   | 4    | StringPoolOffset | Offset to string pool OR uncompressed size if compressed |
 
 ### Flags
 
@@ -65,18 +65,34 @@ BLOC is a compact binary format designed specifically for localization data. It 
 | 0    | Compressed | File uses Deflate compression |
 | 1-15 | Reserved   | Future use                    |
 
+### Language Code
+
+The 12-byte language code field supports various language code formats:
+- Simple codes: "en", "ru", "ja"
+- Regional variants: "zh-hans", "zh-hant", "sr-Latn"
+
+Padded with null bytes to 12 bytes.
+
 ---
 
 ## Compression
 
-BLOC uses **Deflate** compression (same as ZIP/gzip) via `System.IO.Compression`.
+BLOC uses **Deflate** compression (same as ZIP/gzip) via `System.IO.Compression.DeflateStream`.
 
 ### Smart Compression
 
 The serializer automatically checks if compression actually helps:
 
-- If compressed size >= uncompressed - 4 bytes → Store uncompressed
+```csharp
+if (compressed.Length < uncompressedData.Length - 4)
+{
+    // Use compressed format
+}
+// Otherwise store uncompressed
+```
+
 - Small files (< 1KB) often don't benefit from compression
+- Only stores compressed if it saves at least 4 bytes
 
 ---
 
@@ -96,8 +112,8 @@ Contains all translation key-value pairs. Variable size depending on data.
 | Field       | Size      | Description                                |
 | ----------- | --------- | ------------------------------------------ |
 | KeyId       | 4 bytes   | Index into string pool for the key         |
-| ArrayHeader | 4 bytes   | High bit set + count (0x80000000 \| count) |
-| ItemIds     | 4×N bytes | Indices for each array element             |
+| ArrayHeader | 4 bytes   | High bit set + count (0x80000000 | count) |
+| ItemIds     | 4*N bytes | Indices for each array element             |
 
 **Array Header Format:**
 
@@ -152,6 +168,16 @@ String pool contents:
 
 ---
 
+## CRC32 Checksum
+
+Uncompressed files include a 4-byte CRC32 footer for data integrity verification.
+
+The CRC32 algorithm uses polynomial `0xEDB88320` with standard initialization.
+
+Compressed files do not have a separate CRC32 footer (Deflate includes its own checksum).
+
+---
+
 ## Complete Example
 
 ### Input Data (JSON representation)
@@ -165,17 +191,17 @@ String pool contents:
 }
 ```
 
-### Uncompressed BLOC (112 bytes)
+### Uncompressed BLOC (120 bytes)
 
 ```
-[Header: 24 bytes]
+[Header: 32 bytes]
   Magic: "BLOC"
   Version: 1
   Flags: 0 (uncompressed)
-  LanguageCode: "en\0\0"
+  LanguageCode: "en\0\0..." (12 bytes)
   EntryCount: 4
   StringCount: 9
-  StringPoolOffset: 56
+  StringPoolOffset: 64
 
 [Entry Table: 40 bytes]
   ui.play → "Play"
@@ -183,7 +209,7 @@ String pool contents:
   difficulty.options → ["Easy", "Medium", "Hard"]
   ui.back → "Back"
 
-[String Pool: 48 bytes]
+[String Pool: 44 bytes]
   [0-8]: 9 unique strings
 
 [Footer: 4 bytes]
@@ -193,17 +219,15 @@ String pool contents:
 ### Compressed BLOC (~65 bytes)
 
 ```
-[Header: 24 bytes]
+[Header: 32 bytes]
   Magic: "BLOC"
   Version: 1
   Flags: 1 (compressed)
+  StringPoolOffset: 120 (uncompressed size)
   ...
 
-[UncompressedSize: 4 bytes]
-  112
-
-[CompressedData: ~37 bytes]
-  Deflate stream of the 112 bytes
+[CompressedData: ~33 bytes]
+  Deflate stream of the 120 bytes
 ```
 
 ---
@@ -246,12 +270,13 @@ String pool contents:
 | Max strings in pool | 4,294,967,295         |
 | Max string length   | 4,294,967,295 bytes   |
 | Max array items     | 2,147,483,647         |
+| Min file size       | 36 bytes              |
 
 ### Compression
 
 - **Algorithm:** Deflate
 - **Implementation:** `System.IO.Compression.DeflateStream`
-- **Checksum:** CRC32 stored separately (verifies uncompressed data)
+- **Checksum:** CRC32 for uncompressed files
 
 ### Endianness
 
@@ -271,34 +296,29 @@ Little-endian (standard for Unity/.NET platforms).
 
 ### Loading Speed
 
-| Operation     | Time Complexity | Notes              |
-| ------------- | --------------- | ------------------ |
-| Decompression | O(N)            | Only if compressed |
-| Deserialize   | O(N)            | Single pass        |
-| Key lookup    | O(1)            | Hash table         |
+| Operation         | Time Complexity | Notes                   |
+| ----------------- | --------------- | ----------------------- |
+| Decompression     | O(N)            | Only if compressed      |
+| Deserialize       | O(N)            | Single pass             |
+| Build lookup      | O(N)            | Creates dictionary once |
+| Runtime lookup    | O(1)            | Dictionary access       |
 
 ### Memory Usage
 
-| Phase           | Memory                    |
-| --------------- | ------------------------- |
-| Serialization   | ~2x file size (temporary) |
-| Deserialization | ~1.5x file size (runtime) |
-| Runtime lookup  | O(1) additional           |
+| Phase             | Memory                    |
+| ----------------- | ------------------------- |
+| Serialization     | ~2x file size (temporary) |
+| Deserialization   | ~1.5x file size (runtime) |
+| Runtime lookup    | O(1) additional           |
 
-## Example: Real Game Data
+---
 
-### Input (500 keys, 3 languages)
+## Validation
 
-```
-JSON files: 2.8 MB total
-BLOC uncompressed: 1.6 MB
-BLOC compressed:   0.7 MB
-```
+Minimum valid BLOC file: **36 bytes** (32-byte header + 4-byte CRC32)
 
-### Load Time
-
-```
-JSON parse:    ~154ms
-BLOC uncompressed: ~12ms
-BLOC compressed:   ~18ms  ← Still 2.5x faster than JSON!
-```
+Validation checks:
+1. File size >= 36 bytes
+2. Magic number matches "BLOC"
+3. Version is exactly 1
+4. CRC32 checksum matches (uncompressed files only)
