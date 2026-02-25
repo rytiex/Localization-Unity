@@ -410,24 +410,32 @@ namespace PicoShot.Localization.Editor.Tabs
         {
             EditorGUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("Rename", GUILayout.Width(80)))
+            if (GUILayout.Button("Rename", GUILayout.Width(65)))
                 RenameKey();
 
-            if (GUILayout.Button("Translation Options", GUILayout.Width(120)))
+            if (GUILayout.Button("Translate", GUILayout.Width(65)))
                 ShowTranslationOptionsMenu();
 
-            if (GUILayout.Button("Copy Key", GUILayout.Width(80)))
+            if (GUILayout.Button("Copy", GUILayout.Width(55)))
                 ShowCopyKeyMenu();
 
-            if (GUILayout.Button("JSON", GUILayout.Width(80)))
+            if (GUILayout.Button("JSON", GUILayout.Width(50)))
                 ShowJsonOptionsMenu();
 
-            if (GUILayout.Button("Clear", GUILayout.Width(80)))
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(3);
+
+            EditorGUILayout.BeginHorizontal();
+            GUI.backgroundColor = Color.red;
+
+            if (GUILayout.Button("Clear", GUILayout.Width(65)))
                 ClearKeyData();
 
-            if (GUILayout.Button("Delete", GUILayout.Width(80)))
+            if (GUILayout.Button("Delete", GUILayout.Width(65)))
                 ConfirmDeleteKey();
 
+            GUI.backgroundColor = Color.white;
             EditorGUILayout.EndHorizontal();
         }
 
