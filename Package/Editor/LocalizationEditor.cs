@@ -85,6 +85,8 @@ namespace PicoShot.Localization
 
         private void OnGUI()
         {
+            HandleKeyboardInput();
+
             DrawHeader();
             DrawTabs();
 
@@ -97,8 +99,6 @@ namespace PicoShot.Localization
 
             EditorGUILayout.Space();
             DrawSaveButton();
-
-            HandleKeyboardInput();
         }
 
         #endregion
@@ -200,6 +200,7 @@ namespace PicoShot.Localization
         private void HandleKeyboardInput()
         {
             if (Event.current.type != EventType.KeyDown) return;
+            if (GUIUtility.keyboardControl != 0) return;
 
             bool ctrlPressed = (Event.current.modifiers & EventModifiers.Control) != 0;
 
