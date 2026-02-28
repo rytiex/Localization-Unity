@@ -327,8 +327,11 @@ namespace PicoShot.Localization.Editor.Tabs
 
         private void ShowExistingComponentsList()
         {
-            var allComponents = Object.FindObjectsByType<LocalizationTextComponent>(
-                FindObjectsInactive.Include, FindObjectsSortMode.None);
+#if UNITY_6000_4_OR_NEWER
+            var allComponents = Object.FindObjectsByType<LocalizationTextComponent>(FindObjectsInactive.Include);
+#else
+            var allComponents = Object.FindObjectsByType<LocalizationTextComponent>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+#endif
 
             if (allComponents.Length == 0)
             {
