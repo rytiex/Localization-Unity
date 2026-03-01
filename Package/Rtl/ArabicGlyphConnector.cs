@@ -53,6 +53,11 @@ namespace PicoShot.Localization.Rtl
             return false;
         }
 
+        private static bool IsTashkeel(char c)
+        {
+            return c is '\u064B' or '\u064C' or '\u064D' or '\u064E' or '\u064F' or '\u0650' or '\u0651' or '\u0652' or '\u0653';
+        }
+
         /// <summary>
         /// Determines the position of a letter within a word.
         /// </summary>
@@ -83,7 +88,13 @@ namespace PicoShot.Localization.Rtl
         {
             if (index == 0) return false;
 
-            char prevChar = word[index - 1];
+            int prevIndex = index - 1;
+            while (prevIndex >= 0 && IsTashkeel(word[prevIndex]))
+                prevIndex--;
+
+            if (prevIndex < 0) return false;
+
+            char prevChar = word[prevIndex];
             if (prevChar < 0xFE80 || prevChar > 0xFEFF)
                 return false;
 
@@ -94,7 +105,13 @@ namespace PicoShot.Localization.Rtl
         {
             if (index >= word.Length - 1) return false;
 
-            char nextChar = word[index + 1];
+            int nextIndex = index + 1;
+            while (nextIndex < word.Length && IsTashkeel(word[nextIndex]))
+                nextIndex++;
+
+            if (nextIndex >= word.Length) return false;
+
+            char nextChar = word[nextIndex];
             if (nextChar < 0xFE80 || nextChar > 0xFEFF)
                 return false;
 

@@ -1,3 +1,5 @@
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 
@@ -129,42 +131,40 @@ namespace PicoShot.Localization.Rtl
                 return;
 
             int newLength = length + positions.Count;
+            if (newLength > letters.Length)
+                return;
 
-            // Shift characters to make room for tashkeel
-            for (int i = length - 1; i >= 0; i--)
+            char[] temp = ArrayPool<char>.Shared.Rent(length);
+            try
             {
-                int newIndex = i + CountTashkeelBeforePosition(positions, i);
-                if (newIndex < letters.Length)
+                Array.Copy(letters, temp, length);
+
+                int sourceIndex = 0;
+                int destIndex = 0;
+                int tashkeelIndex = 0;
+
+                while (sourceIndex < length)
                 {
-                    letters[newIndex] = letters[i];
+                    while (tashkeelIndex < positions.Count && positions[tashkeelIndex].Position == destIndex)
+                    {
+                        letters[destIndex++] = positions[tashkeelIndex++].Tashkeel;
+                    }
+
+                    letters[destIndex++] = temp[sourceIndex++];
+                }
+
+                while (tashkeelIndex < positions.Count)
+                {
+                    letters[destIndex++] = positions[tashkeelIndex++].Tashkeel;
                 }
             }
-
-            // Insert tashkeel marks
-            foreach (var position in positions)
+            finally
             {
-                int insertIndex = position.Position;
-                if (insertIndex < letters.Length)
-                {
-                    letters[insertIndex] = position.Tashkeel;
-                }
+                ArrayPool<char>.Shared.Return(temp);
             }
 
             length = newLength;
         }
 
-        /// <summary>
-        /// Counts how many tashkeel marks should appear before the given original position.
-        /// </summary>
-        private static int CountTashkeelBeforePosition(List<TashkeelPosition> positions, int originalPosition)
-        {
-            int count = 0;
-            foreach (var pos in positions)
-            {
-                if (pos.Position <= originalPosition)
-                    count++;
-            }
-            return count;
-        }
     }
 }

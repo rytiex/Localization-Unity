@@ -139,7 +139,13 @@ namespace PicoShot.Localization.Rtl
                     continue;
                 }
 
-                if (IsLatinChar(c) || char.IsSymbol(c) || char.IsSurrogate(c))
+                if (IsLatinChar(c) || IsTashkeel(c) || char.IsSurrogate(c))
+                {
+                    numberBuffer.Add(c);
+                    continue;
+                }
+
+                if (char.IsSymbol(c))
                 {
                     numberBuffer.Add(c);
                     continue;
@@ -167,6 +173,11 @@ namespace PicoShot.Localization.Rtl
         private static bool IsLatinChar(char c)
         {
             return char.IsNumber(c) || char.IsLower(c) || char.IsUpper(c);
+        }
+
+        private static bool IsTashkeel(char c)
+        {
+            return c is '\u064B' or '\u064C' or '\u064D' or '\u064E' or '\u064F' or '\u0650' or '\u0651' or '\u0652' or '\u0653';
         }
 
         private static bool IsBracket(char c)
