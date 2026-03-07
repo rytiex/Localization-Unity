@@ -16,6 +16,8 @@ Complete API documentation for PicoShot Localization system.
 - [Getting Native Language Names](#getting-native-language-names)
 - [Setting Language](#setting-language)
 - [Text Retrieval](#text-retrieval)
+  - [Parameter Key Resolution](#parameter-key-resolution-new)
+  - [Extension Methods](#extension-methods-new)
 - [Bind Functions (Components)](#bind-functions-components)
   - [Quick Bind Methods](#quick-bind-methods)
   - [Manual Component Usage](#manual-component-usage)
@@ -185,6 +187,54 @@ string stats = LocalizationManager.GetText("stats", "100", "50");
 // "stats": "Health: {0}, Mana: {1}"
 ```
 
+### Parameter Key Resolution
+
+The system supports resolving parameters as localization keys using the `Key` struct.
+
+```csharp
+// Localization data:
+// "welcome": "Welcome to {0}"
+// "game_name": "My Game Name"
+
+// All of these output: "Welcome to My Game Name"
+
+// 1. Pass literal string (no resolution)
+LocalizationManager.GetText("welcome", "My Game Name");
+
+// 2. Cast string to Key (resolves as localization key)
+LocalizationManager.GetText("welcome", (Key)"game_name");
+
+// 3. Use Key.From() method
+LocalizationManager.GetText("welcome", Key.From("game_name"));
+
+// 4. Implicit conversion from string
+Key gameKey = "game_name";
+LocalizationManager.GetText("welcome", gameKey);
+
+// 5. All parameters resolved as keys (convenience method)
+LocalizationManager.GetTextWithParamKeys("welcome", "game_name");
+
+// 6. Mixed parameters - some literal, some keys
+// "player_welcome": "Welcome {0}, you have {1} new messages"
+// "player_name": "Hero"
+LocalizationManager.GetText("player_welcome", (Key)"player_name", "5");
+// Output: "Welcome Hero, you have 5 new messages"
+```
+
+### Extension Methods
+
+Cleaner syntax using string extensions:
+
+```csharp
+// String extension for GetText
+"welcome".Localized("My Game Name");           // literal
+"welcome".Localized((Key)"game_name");         // key resolved
+
+// Array extensions
+string[] options = "graphics".LocalizedArray();           // GetArray
+string quality = "graphics".LocalizedArrayElement(0);     // GetArrayText
+```
+
 ### Get Array Text
 
 For translations stored as arrays (e.g., dropdown options).
@@ -199,6 +249,14 @@ string difficulty = LocalizationManager.GetArrayText("difficulty_options", 2);  
 
 // Get with bounds checking (returns placeholder if out of range)
 string invalid = LocalizationManager.GetArrayText("difficulty_options", 10);  // "[difficulty_options:10]"
+
+// Using Key struct (supports implicit conversion)
+string[] graphics = LocalizationManager.GetArray((Key)"graphics_options");
+string quality = LocalizationManager.GetArrayText(Key.From("graphics_options"), 0);
+
+// Extension methods
+string[] difficulties = "difficulty_options".LocalizedArray();
+string easy = "difficulty_options".LocalizedArrayElement(0);
 ```
 
 ### Check Key Existence
@@ -618,6 +676,71 @@ public class RtlLayoutHandler : MonoBehaviour
             contentPanel.anchorMax = new Vector2(0, 1);
             contentPanel.pivot = new Vector2(0, 0.5f);
         }
+    }
+}
+```
+
+### Using Key Resolution for Dynamic Content
+
+```csharp
+public class GameMessageSystem : MonoBehaviour
+{
+    [SerializeField] private TMP_Text welcomeText;
+    [SerializeField] private TMP_Text equipText;
+    [SerializeField] private TMP_Dropdown graphicsDropdown;
+
+    void Start()
+    {
+        // Localization data:
+        // "welcome": "Welcome to {0}!"
+        // "game_name": "Epic Adventure"
+        // "player_equip": "{0} equipped {1}"
+        // "player_name": "Hero"
+        // "weapon_sword": "Iron Sword"
+        // "graphics_options": ["Low", "Medium", "High", "Ultra"]
+
+        // Welcome with resolved game name
+        welcomeText.text = "welcome".Localized((Key)"game_name");
+        // Output: "Welcome to Epic Adventure!"
+
+        // Mixed parameters - player name as key, weapon as literal
+        equipText.text = LocalizationManager.GetText(
+            "player_equip",
+            (Key)"player_name",  // Resolved: "Hero"
+            "Wooden Staff"       // Literal
+        );
+        // Output: "Hero equipped Wooden Staff"
+
+        // Using convenience method when all params are keys
+        equipText.text = LocalizationManager.GetTextWithParamKeys(
+            "player_equip",
+            "player_name",   // Both resolved as keys
+            "weapon_sword"
+        );
+        // Output: "Hero equipped Iron Sword"
+
+        // Populate dropdown using array extension
+        string[] options = "graphics_options".LocalizedArray();
+        graphicsDropdown.ClearOptions();
+        graphicsDropdown.AddOptions(options.ToList());
+    }
+
+    void ShowDynamicMessage(string messageKey, params object[] args)
+    {
+        // Pass mixed args directly - Key objects resolved, others treated as literals
+        string message = LocalizationManager.GetText(messageKey, args);
+        Debug.Log(message);
+    }
+
+    void ExampleUsage()
+    {
+        // Can mix types in the array
+        ShowDynamicMessage(
+            "reward_message",
+            (Key)"player_name",     // Resolved as key
+            100,                    // Converted to string "100"
+            "Gold"                  // Literal string
+        );
     }
 }
 ```
