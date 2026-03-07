@@ -366,9 +366,11 @@ namespace PicoShot.Localization
         #region Text Retrieval
 
         /// <summary>
-        /// Gets a translated string by key.
+        /// Gets a translated string by key with optional formatting arguments.
+        /// Strings are treated as literals, Key structs are resolved as localization keys,
+        /// other types are converted via ToString().
         /// </summary>
-        public static string GetText(string key, params string[] args)
+        public static string GetText(string key, params object[] args)
         {
             if (string.IsNullOrEmpty(key))
             {
@@ -385,7 +387,18 @@ namespace PicoShot.Localization
 
             if (args != null && args.Length > 0)
             {
-                text = string.Format(text, args);
+                var resolvedArgs = new string[args.Length];
+                for (int i = 0; i < args.Length; i++)
+                {
+                    resolvedArgs[i] = args[i] switch
+                    {
+                        Key k => GetRawText(k.Value),
+                        null => string.Empty,
+                        string s => s,
+                        _ => args[i].ToString()
+                    };
+                }
+                text = string.Format(text, resolvedArgs);
             }
 
             if (IsRightToLeft)
@@ -396,6 +409,9 @@ namespace PicoShot.Localization
             return text;
         }
 
+        /// <summary>
+        /// Gets a translated string with all parameters resolved as localization keys.
+        /// </summary>
         public static string GetTextWithParamKeys(string key, params string[] args)
         {
             if (string.IsNullOrEmpty(key))
@@ -495,6 +511,11 @@ namespace PicoShot.Localization
         }
 
         /// <summary>
+        /// Gets an array of strings by key.
+        /// </summary>
+        public static string[] GetArray(Key key) => GetArray(key.Value);
+
+        /// <summary>
         /// Gets a single element from an array by key and index.
         /// </summary>
         public static string GetArrayText(string key, int index)
@@ -515,6 +536,11 @@ namespace PicoShot.Localization
             Debug.LogWarning($"[LocalizationManager] Array index {index} out of range for key '{key}'");
             return $"[{key}:{index}]";
         }
+
+        /// <summary>
+        /// Gets a single element from an array by key and index.
+        /// </summary>
+        public static string GetArrayText(Key key, int index) => GetArrayText(key.Value, index);
 
         private static string[] GetArrayInternal(string key)
         {
