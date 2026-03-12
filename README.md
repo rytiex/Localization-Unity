@@ -16,6 +16,14 @@ A lightweight, zero-runtime-dependency, high-performance localization system for
 - **Multiple Component Support** - Works with TMP_Text, TMP_Dropdown, Legacy UI, and TextMesh
 - **Format Parameters** - String formatting support with `{0}`, `{1}` placeholders
 
+## Localization App
+
+I also developed a separate localization management app built with modern web technologies (**React + Vite + Tauri**) to make working with translations much easier than using the default Unity UI.
+It provides a cleaner interface for managing, editing, and translating localization data, which significantly speeds up the workflow.
+I highly recommend using this app when working with the localization system.
+
+Repository: [Localization-UI](https://github.com/PicoShot/Localization-UI)
+
 ## Quick Start
 
 ### 1. Installation
