@@ -29,7 +29,8 @@ namespace PicoShot.Localization.Editor.Services
         /// </summary>
         public async Task TranslateAndFill(string key)
         {
-            if (!_data.LanguageData.TryGetValue(key, out var keyData)) return;
+            if (!_data.LanguageData.TryGetValue(key, out var keyData))
+                return;
 
             string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
 
@@ -75,10 +76,21 @@ namespace PicoShot.Localization.Editor.Services
             }
 
             string keyHint = _data.SelectedKey == key ? _data.CurrentKeyHint : "";
+            var targetLanguages = _data.LanguageCodes.Where(l => l != sourceLang && string.IsNullOrWhiteSpace(keyData[l]?.ToString())).ToList();
 
-            foreach (var lang in _data.LanguageCodes.Where(l => l != sourceLang))
+            if (targetLanguages.Count == 0)
+                return;
+
+            if (_data.ActiveTranslationProvider == TranslationProvider.Gemini)
             {
-                if (!string.IsNullOrWhiteSpace(keyData[lang]?.ToString())) continue;
+                await TranslateWithGeminiBatchAsync(sourceText, sourceLang, targetLanguages, keyData, keyHint, -1);
+                return;
+            }
+
+            foreach (var lang in targetLanguages)
+            {
+                if (!string.IsNullOrWhiteSpace(keyData[lang]?.ToString()))
+                    continue;
 
                 try
                 {
@@ -169,13 +181,29 @@ namespace PicoShot.Localization.Editor.Services
                     continue;
                 }
 
+                var missingForElement = new List<string>();
                 foreach (var lang in targetLanguages)
                 {
                     var targetArray = LanguageEditorData.ConvertToList(keyData[lang]);
-                    if (targetArray == null || targetArray.Count <= i)
-                        continue;
+                    if (targetArray != null && targetArray.Count > i && string.IsNullOrWhiteSpace(targetArray[i]))
+                    {
+                        missingForElement.Add(lang);
+                    }
+                }
 
-                    if (!string.IsNullOrWhiteSpace(targetArray[i]))
+                if (missingForElement.Count == 0)
+                    continue;
+
+                if (_data.ActiveTranslationProvider == TranslationProvider.Gemini)
+                {
+                    await TranslateWithGeminiBatchAsync(sourceText, sourceLang, missingForElement, keyData, keyHint, i);
+                    continue;
+                }
+
+                foreach (var lang in missingForElement)
+                {
+                    var targetArray = LanguageEditorData.ConvertToList(keyData[lang]);
+                    if (targetArray == null || targetArray.Count <= i)
                         continue;
 
                     try
@@ -280,6 +308,201 @@ namespace PicoShot.Localization.Editor.Services
             public string source_lang;
             public string target_lang;
             public string context;
+        }
+
+        // --- Gemini Implementation ---
+
+        private async Task TranslateWithGeminiBatchAsync(string sourceText, string sourceLang, List<string> targetLanguages, Dictionary<string, object> keyData, string keyHint, int arrayIndex)
+        {
+            string apiKey = _data.GeminiApiKey;
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                Debug.LogError("Gemini API Key is missing.");
+                return;
+            }
+
+            string model = _data.GeminiModel == "custom" ? _data.GeminiCustomModel : _data.GeminiModel;
+            string url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+
+            string systemPrompt = _data.GeminiContext;
+            string userPrompt = $"Source Language: {sourceLang}\nTarget Languages (keys): {string.Join(", ", targetLanguages)}\nSource Text:\n{sourceText}";
+            if (!string.IsNullOrWhiteSpace(keyHint))
+            {
+                userPrompt += $"\n\nContext for this specific text: {keyHint}";
+            }
+
+            var requestBody = new GeminiRequest
+            {
+                system_instruction = new GeminiContent { parts = new[] { new GeminiPart { text = systemPrompt } } },
+                contents = new[]
+                {
+                    new GeminiContent { parts = new[] { new GeminiPart { text = userPrompt } } }
+                },
+                generationConfig = new GeminiGenerationConfig
+                {
+                    response_mime_type = "application/json"
+                }
+            };
+
+            string jsonBody = JsonUtility.ToJson(requestBody);
+            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await _httpClient.PostAsync(url, content);
+                string responseJson = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Debug.LogError($"Gemini translation failed: {response.StatusCode} - {responseJson}");
+                    return;
+                }
+
+                var parsedResult = ParseGeminiResponse(responseJson);
+                if (parsedResult.Count > 0)
+                {
+                    foreach (var lang in targetLanguages)
+                    {
+                        if (parsedResult.TryGetValue(lang, out string translation))
+                        {
+                            if (arrayIndex == -1)
+                            {
+                                keyData[lang] = translation;
+                            }
+                            else
+                            {
+                                var targetArray = LanguageEditorData.ConvertToList(keyData[lang]);
+                                if (targetArray != null && targetArray.Count > arrayIndex)
+                                {
+                                    targetArray[arrayIndex] = translation;
+                                }
+                            }
+                        }
+                    }
+                    _data.HasUnsavedChanges = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Gemini translation error: {ex.Message}");
+            }
+        }
+
+        private Dictionary<string, string> ParseGeminiResponse(string json)
+        {
+            var result = new Dictionary<string, string>();
+            try
+            {
+                var response = JsonUtility.FromJson<GeminiResponse>(json);
+                var parts = response?.candidates?[0]?.content?.parts;
+                if (parts != null && parts.Length > 0)
+                {
+                    string text = parts[0].text;
+                    // Simple JSON parse for {"lang1":"text"} mapping since Unity's JsonUtility doesn't natively support Dictionary serialization.
+                    // To handle this simply without external libraries, we use some minimal string parsing.
+                    return ParseSimpleJsonToDictionary(text);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to parse Gemini response: {ex.Message}");
+            }
+            return result;
+        }
+
+        private Dictionary<string, string> ParseSimpleJsonToDictionary(string jsonText)
+        {
+            var dict = new Dictionary<string, string>();
+            try
+            {
+                jsonText = jsonText.Trim();
+                if (jsonText.StartsWith("{") && jsonText.EndsWith("}"))
+                {
+                    jsonText = jsonText.Substring(1, jsonText.Length - 2);
+
+                    int i = 0;
+                    while (i < jsonText.Length)
+                    {
+                        int keyStart = jsonText.IndexOf('"', i);
+                        if (keyStart == -1)
+                            break;
+                        int keyEnd = jsonText.IndexOf('"', keyStart + 1);
+                        if (keyEnd == -1)
+                            break;
+
+                        string key = jsonText.Substring(keyStart + 1, keyEnd - keyStart - 1);
+
+                        int colonIndex = jsonText.IndexOf(':', keyEnd + 1);
+                        if (colonIndex == -1)
+                            break;
+
+                        int valStart = jsonText.IndexOf('"', colonIndex + 1);
+                        if (valStart == -1)
+                            break;
+
+                        int valEnd = valStart + 1;
+                        while (valEnd < jsonText.Length)
+                        {
+                            if (jsonText[valEnd] == '"' && jsonText[valEnd - 1] != '\\')
+                                break;
+                            valEnd++;
+                        }
+
+                        if (valEnd >= jsonText.Length)
+                            break;
+
+                        string val = jsonText.Substring(valStart + 1, valEnd - valStart - 1);
+                        val = val.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\\", "\\");
+
+                        dict[key] = val;
+                        i = valEnd + 1;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error strictly parsing translation JSON: {ex.Message}");
+            }
+            return dict;
+        }
+
+        [Serializable]
+        private class GeminiRequest
+        {
+            public GeminiContent system_instruction;
+            public GeminiContent[] contents;
+            public GeminiGenerationConfig generationConfig;
+        }
+
+        [Serializable]
+        private class GeminiContent
+        {
+            public GeminiPart[] parts;
+            public string role;
+        }
+
+        [Serializable]
+        private class GeminiPart
+        {
+            public string text;
+        }
+
+        [Serializable]
+        private class GeminiGenerationConfig
+        {
+            public string response_mime_type;
+        }
+
+        [Serializable]
+        private class GeminiResponse
+        {
+            public GeminiCandidate[] candidates;
+        }
+
+        [Serializable]
+        private class GeminiCandidate
+        {
+            public GeminiContent content;
         }
     }
 }

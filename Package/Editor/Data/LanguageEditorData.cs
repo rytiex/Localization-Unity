@@ -6,6 +6,12 @@ using PicoShot.Localization.Config;
 
 namespace PicoShot.Localization.Editor.Data
 {
+    public enum TranslationProvider
+    {
+        DeepL,
+        Gemini
+    }
+
     /// <summary>
     /// Centralized data model for the Localization Editor.
     /// Holds all state, keys, languages and editor preferences.
@@ -66,6 +72,14 @@ namespace PicoShot.Localization.Editor.Data
         public Dictionary<string, bool> LanguageSelectionForCharset { get; } = new();
         public Dictionary<string, string> GeneratedCharsets { get; } = new();
 
+        // Translation Provider Settings
+        public const string TranslationProviderPref = "PicoShot_Localization_TranslationProvider";
+        public TranslationProvider ActiveTranslationProvider
+        {
+            get => (TranslationProvider)PlayerPrefs.GetInt(TranslationProviderPref, (int)TranslationProvider.DeepL);
+            set => PlayerPrefs.SetInt(TranslationProviderPref, (int)value);
+        }
+
         // DeepL Settings (stored in preferences, not this data)
         public const string DefaultDeeplApiUrl = "https://api-free.deepl.com/v2/translate";
         public const string DeeplApiUrlPref = "PicoShot_Localization_DeepLApiUrl";
@@ -90,6 +104,39 @@ namespace PicoShot.Localization.Editor.Data
         {
             get => PlayerPrefs.GetString(DeeplContextPref, DefaultDeepLContext);
             set => PlayerPrefs.SetString(DeeplContextPref, value);
+        }
+
+        // Gemini Settings
+        public const string GeminiApiKeyPref = "PicoShot_Localization_GeminiApiKey";
+        public const string GeminiModelPref = "PicoShot_Localization_GeminiModel";
+        public const string GeminiCustomModelPref = "PicoShot_Localization_GeminiCustomModel";
+        public const string GeminiContextPref = "PicoShot_Localization_GeminiContext";
+
+        public const string DefaultGeminiModel = "gemini-2.5-flash";
+        public const string DefaultGeminiContext = "You are a specialized game localization translator. Your task is to accurately translate text for game UI, dialogues, and system messages while preserving tone and brevity. Translate the provided source text from the source language into all specified target languages. Return only a valid JSON object where keys are the target language codes and values are the translated text.";
+
+        public string GeminiApiKey
+        {
+            get => UnityEditor.EditorPrefs.GetString(GeminiApiKeyPref, "");
+            set => UnityEditor.EditorPrefs.SetString(GeminiApiKeyPref, value);
+        }
+
+        public string GeminiModel
+        {
+            get => PlayerPrefs.GetString(GeminiModelPref, DefaultGeminiModel);
+            set => PlayerPrefs.SetString(GeminiModelPref, value);
+        }
+
+        public string GeminiCustomModel
+        {
+            get => PlayerPrefs.GetString(GeminiCustomModelPref, "");
+            set => PlayerPrefs.SetString(GeminiCustomModelPref, value);
+        }
+
+        public string GeminiContext
+        {
+            get => PlayerPrefs.GetString(GeminiContextPref, DefaultGeminiContext);
+            set => PlayerPrefs.SetString(GeminiContextPref, value);
         }
 
         // Constants
@@ -126,7 +173,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public static bool IsArrayKey(Dictionary<string, object> keyData)
         {
-            if (keyData == null || keyData.Count == 0) return false;
+            if (keyData == null || keyData.Count == 0)
+                return false;
             var firstValue = keyData.Values.FirstOrDefault();
             return firstValue is List<string> || firstValue is string[];
         }
@@ -151,7 +199,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public static object GetFirstValue(Dictionary<string, object> keyData)
         {
-            if (keyData == null || keyData.Count == 0) return null;
+            if (keyData == null || keyData.Count == 0)
+                return null;
 
             string defaultLang = LocalizationConfigProvider.Config.DefaultLanguage;
             if (keyData.TryGetValue(defaultLang, out var value))
@@ -165,8 +214,10 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public static List<string> ConvertToList(object value)
         {
-            if (value is List<string> list) return list;
-            if (value is string[] arr) return arr.ToList();
+            if (value is List<string> list)
+                return list;
+            if (value is string[] arr)
+                return arr.ToList();
             return null;
         }
 
@@ -201,7 +252,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public bool AddLanguage(string language)
         {
-            if (LanguageCodes.Contains(language)) return false;
+            if (LanguageCodes.Contains(language))
+                return false;
 
             LanguageCodes.Add(language);
 
@@ -237,7 +289,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public bool RemoveLanguage(string language)
         {
-            if (!LanguageCodes.Contains(language)) return false;
+            if (!LanguageCodes.Contains(language))
+                return false;
 
             LanguageCodes.Remove(language);
 
@@ -256,7 +309,8 @@ namespace PicoShot.Localization.Editor.Data
         public bool AddKey(string key, bool isArray)
         {
             key = key?.Trim();
-            if (string.IsNullOrEmpty(key) || Keys.Contains(key)) return false;
+            if (string.IsNullOrEmpty(key) || Keys.Contains(key))
+                return false;
 
             Keys.Add(key);
             LanguageData[key] = new Dictionary<string, object>();
@@ -276,7 +330,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public bool RemoveKey(string key)
         {
-            if (!Keys.Contains(key)) return false;
+            if (!Keys.Contains(key))
+                return false;
 
             Keys.Remove(key);
             LanguageData.Remove(key);
@@ -291,7 +346,8 @@ namespace PicoShot.Localization.Editor.Data
         public bool RenameKey(string oldKey, string newKey)
         {
             newKey = newKey?.Trim();
-            if (!Keys.Contains(oldKey) || Keys.Contains(newKey)) return false;
+            if (!Keys.Contains(oldKey) || Keys.Contains(newKey))
+                return false;
 
             int index = Keys.IndexOf(oldKey);
             Keys[index] = newKey;
@@ -307,7 +363,8 @@ namespace PicoShot.Localization.Editor.Data
         /// </summary>
         public void ClearKeyTranslations(string key)
         {
-            if (!LanguageData.TryGetValue(key, out var keyData)) return;
+            if (!LanguageData.TryGetValue(key, out var keyData))
+                return;
 
             foreach (var lang in keyData.Keys.ToList())
             {
@@ -358,7 +415,8 @@ namespace PicoShot.Localization.Editor.Data
         public void ClearEmptyArrayElements(string key)
         {
             var firstValue = GetFirstValue(key);
-            if (firstValue is not List<string> firstArray) return;
+            if (firstValue is not List<string> firstArray)
+                return;
 
             for (int i = firstArray.Count - 1; i >= 0; i--)
             {
@@ -418,7 +476,8 @@ namespace PicoShot.Localization.Editor.Data
             switch (value)
             {
                 case string str:
-                    foreach (var c in str) charSet.Add(c);
+                    foreach (var c in str)
+                        charSet.Add(c);
                     break;
                 case List<string> list:
                     foreach (var c in list.Where(item => item != null).SelectMany(item => item))

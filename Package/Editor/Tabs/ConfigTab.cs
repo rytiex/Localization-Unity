@@ -35,7 +35,7 @@ namespace PicoShot.Localization.Editor.Tabs
                 DrawDefaultLanguageSection(config);
                 DrawCompressionSettings(config);
                 DrawProtectionSettings(config);
-                DrawDeepLSettings();
+                DrawTranslationSettings();
                 DrawFileOperations();
                 DrawPathInfo();
             }
@@ -131,13 +131,56 @@ namespace PicoShot.Localization.Editor.Tabs
             EditorGUILayout.Space();
         }
 
+        private void DrawTranslationSettings()
+        {
+            EditorGUILayout.LabelField("Translation API", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Provider:", GUILayout.Width(120));
+            var newProvider = (TranslationProvider)EditorGUILayout.EnumPopup(Data.ActiveTranslationProvider);
+            if (newProvider != Data.ActiveTranslationProvider)
+            {
+                Data.ActiveTranslationProvider = newProvider;
+                GUI.changed = true;
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space();
+
+            if (Data.ActiveTranslationProvider == TranslationProvider.DeepL)
+            {
+                DrawDeepLSettings();
+            }
+            else if (Data.ActiveTranslationProvider == TranslationProvider.Gemini)
+            {
+                DrawGeminiSettings();
+            }
+        }
+
         private void DrawDeepLSettings()
         {
-            EditorGUILayout.LabelField("DeepL API Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("DeepL Settings", EditorStyles.boldLabel);
 
             DrawApiUrlField();
             DrawApiKeyField();
-            DrawContextField();
+            DrawDeepLContextField();
+
+            EditorGUILayout.Space();
+        }
+
+        private void DrawGeminiSettings()
+        {
+            EditorGUILayout.LabelField("Gemini API Settings", EditorStyles.boldLabel);
+
+            DrawGeminiApiKeyField();
+            DrawGeminiModelField();
+
+            if (Data.GeminiModel == "custom")
+            {
+                DrawGeminiCustomModelField();
+            }
+
+            DrawGeminiContextField();
 
             EditorGUILayout.Space();
         }
@@ -174,7 +217,7 @@ namespace PicoShot.Localization.Editor.Tabs
             EditorGUILayout.EndHorizontal();
         }
 
-        private void DrawContextField()
+        private void DrawDeepLContextField()
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Translation Context:", GUILayout.Width(150));
@@ -189,6 +232,68 @@ namespace PicoShot.Localization.Editor.Tabs
             EditorGUILayout.EndHorizontal();
 
             Data.DeeplContext = EditorGUILayout.TextArea(Data.DeeplContext, GUILayout.MinHeight(60));
+        }
+
+        private void DrawGeminiApiKeyField()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("API Key:", GUILayout.Width(70));
+            Data.GeminiApiKey = EditorGUILayout.PasswordField(Data.GeminiApiKey);
+
+            GUI.enabled = !string.IsNullOrEmpty(Data.GeminiApiKey);
+            if (GUILayout.Button("Clear", GUILayout.Width(60)))
+            {
+                Data.GeminiApiKey = "";
+                GUI.FocusControl(null);
+            }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawGeminiModelField()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Model:", GUILayout.Width(70));
+
+            string[] defaultModels = { "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite", "custom" };
+
+            int selectedIndex = System.Array.IndexOf(defaultModels, Data.GeminiModel);
+            if (selectedIndex == -1)
+                selectedIndex = defaultModels.Length - 1; // "custom" if unknown
+
+            int newIndex = EditorGUILayout.Popup(selectedIndex, defaultModels);
+            if (newIndex != selectedIndex)
+            {
+                Data.GeminiModel = defaultModels[newIndex];
+                GUI.FocusControl(null);
+            }
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawGeminiCustomModelField()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Custom Model:", GUILayout.Width(100));
+            Data.GeminiCustomModel = EditorGUILayout.TextField(Data.GeminiCustomModel);
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawGeminiContextField()
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Translation prompt/context:", GUILayout.Width(200));
+
+            GUI.enabled = Data.GeminiContext != LanguageEditorData.DefaultGeminiContext;
+            if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+            {
+                Data.GeminiContext = LanguageEditorData.DefaultGeminiContext;
+                GUI.FocusControl(null);
+            }
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+
+            Data.GeminiContext = EditorGUILayout.TextArea(Data.GeminiContext, GUILayout.MinHeight(80));
         }
 
         private void DrawFileOperations()
