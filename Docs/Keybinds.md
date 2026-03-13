@@ -28,10 +28,10 @@ Complete reference for keyboard shortcuts available in the Language Editor windo
 
 ## Translation & Copy
 
-| Shortcut   | Action                                  |
-| ---------- | --------------------------------------- |
-| `Ctrl + T` | Translate the selected key using DeepL  |
-| `Ctrl + C` | Copy the selected key name to clipboard |
+| Shortcut   | Action                                        |
+| ---------- | --------------------------------------------- |
+| `Ctrl + T` | Translate the selected key using DeepL/Gemini |
+| `Ctrl + C` | Copy the selected key name to clipboard       |
 
 ## How to Use
 
@@ -50,16 +50,16 @@ Keys can be reordered to organize your translations:
 2. Hold `Ctrl` and press `↑` or `↓` to move the key
 3. The new order is saved when you save the files (`Ctrl + S`)
 
-### Translating with DeepL
+### Translating with DeepL/Gemini
 
-Quickly translate a key using DeepL integration:
+Quickly translate a key using DeepL/Gemini integration:
 
 1. Select a key
-2. Set up your DeepL API key in the Settings tab
+2. Set up your DeepL/Gemini API key in the Settings tab
 3. Press `Ctrl + T` to translate the selected key
 4. The translation will be applied to all target languages
 
-> **Note:** DeepL translation requires an API key configured in the Settings tab.
+> **Note:** DeepL/Gemini translation requires an API key configured in the Settings tab.
 
 ### Copying Key Names
 

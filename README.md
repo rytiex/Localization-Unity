@@ -3,7 +3,7 @@
 [![Unity](https://img.shields.io/badge/Unity-2022.3%2B-blue)](https://unity.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A lightweight, zero-runtime-dependency, high-performance localization system for Unity with support for multiple languages, RTL (Right-to-Left) text, binary format (BLOC), and DeepL translation integration.
+A lightweight, zero-runtime-dependency, high-performance localization system for Unity with support for multiple languages, RTL (Right-to-Left) text, binary format (BLOC), and DeepL/Gemini translation integration.
 
 ## Features
 
@@ -12,7 +12,7 @@ A lightweight, zero-runtime-dependency, high-performance localization system for
 - **RTL Support** - Automatic Right-to-Left text handling for Arabic, Hebrew, Persian, and more
 - **Zero Runtime Dependencies** - Only requires TextMeshPro (optional for basic usage)
 - **Anti-Tamper** - Optional file hash verification to protect translation files
-- **Editor Tools** - Built-in Language Editor with DeepL translation integration
+- **Editor Tools** - Built-in Language Editor with DeepL/Gemini translation integration
 - **Multiple Component Support** - Works with TMP_Text, TMP_Dropdown, Legacy UI, and TextMesh
 - **Format Parameters** - String formatting support with `{0}`, `{1}` placeholders
 

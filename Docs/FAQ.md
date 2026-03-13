@@ -31,6 +31,7 @@ Unity 2022.3 (LTS) and higher.
 ### How do I install the package?
 
 Add via Unity Package Manager:
+
 ```
 https://github.com/PicoShot/Localization-Unity.git?path=/Package
 ```
@@ -57,18 +58,21 @@ Yes, TextMeshPro is required for the UI components. It's included with Unity by 
 ### How do I translate my text?
 
 **Option 1: Manual Translation**
+
 1. Open Language Editor
 2. Create keys in the "Keys" tab
 3. Add translations for each language
 
-**Option 2: DeepL Translation**
-1. Get a DeepL API key
+**Option 2: DeepL/Gemini Translation**
+
+1. Get a DeepL/Gemini API key
 2. Enter it in Settings tab
 3. Select a key and press `Ctrl + T`
 
 ### Can I use format parameters?
 
 Yes! Use `{0}`, `{1}`, etc. in your translation text:
+
 ```csharp
 // Translation: "Hello, {0}! You have {1} coins."
 LocalizationManager.GetText("welcome", "Player", "100");
@@ -112,6 +116,7 @@ The text is handled automatically, but you may want to adjust UI layout (anchors
 ### Is the binary format faster than JSON?
 
 Yes! BLOC format offers:
+
 - **50-70% smaller** file sizes
 - **O(1) lookups** - direct access, no parsing
 - **String deduplication** - reduces memory usage
@@ -120,6 +125,7 @@ Yes! BLOC format offers:
 ### How much memory does it use?
 
 The system uses:
+
 - One language loaded at a time in memory
 - Fallback language cached for missing keys
 - Array cache for repeated `GetArray()` calls
@@ -146,10 +152,10 @@ Yes, languages are loaded on-demand when you call `SetLanguage()`. Only the curr
 3. Check `LocalizationManager.IsInitialized`
 4. Look for errors in the console
 
-### DeepL translation not working
+### DeepL/Gemini translation not working
 
 1. Verify your API key in Settings tab
-2. Check your DeepL account has available credits
+2. Check your DeepL/Gemini account has available credits
 3. Ensure you have internet connection
 4. Look for error messages in console
 
@@ -166,6 +172,7 @@ Yes, languages are loaded on-demand when you call `SetLanguage()`. Only the curr
 ### Can I protect my translation files?
 
 Yes! Enable protection in the config:
+
 1. Set Protection Mode to "Anti-Tamper" or "Both"
 2. Build your project
 3. Hash verification will check file integrity at runtime
@@ -173,18 +180,21 @@ Yes! Enable protection in the config:
 ### Can I add custom languages?
 
 The system supports any ISO language code. Add custom languages by:
+
 1. Using the language code in your translation files
 2. Adding display names to `LanguageDefinitions` (optional)
 
 ### How do I update translations at runtime?
 
 The system loads from files at startup. To update:
+
 1. Replace the `.bloc` file
 2. Call `LocalizationManager.Initialize()` to reload
 
 ### Can I use this with Addressables?
 
 The current version loads from local files. For Addressables support, you would need to:
+
 1. Download the `.bloc` file to the `Locales` folder
 2. Call `LocalizationManager.RefreshAvailableLanguages()`
 3. Then switch language
