@@ -1,5 +1,9 @@
 # Localization for Unity
 
+<div align="center">
+  <img src="Docs/overview.gif" alt="PicoShot Localization Overview" width="400" />
+</div>
+
 [![Unity](https://img.shields.io/badge/Unity-2022.3%2B-blue)](https://unity.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
