@@ -411,7 +411,7 @@ component.AddTextProcessor(text =>
 
 // Example: Add prefix based on language
 component.AddTextProcessor(text =>
-    LocalizationManager.CurrentLanguage == "ja" ? $"【{text}】" : text);
+    LocalizationManager.CurrentLanguage == "ja" ? $"〞{text}】" : text);
 ```
 
 ### Events
@@ -741,6 +741,52 @@ public class GameMessageSystem : MonoBehaviour
             100,                    // Converted to string "100"
             "Gold"                  // Literal string
         );
+    }
+}
+```
+
+### Using TextNodes
+TextNode is a node-based text system designed for localization and networking.
+
+Instead of storing text as a plain string, messages are built from composable nodes:
+- Plain text
+- Localized entries
+- Rich text modifiers
+- Nested formatted arguments
+
+This allows text to be transferred over the network while preserving localization data.
+When received, the message is automatically rebuilt using the target player's selected language.
+
+> If your project uses Netcode, add `NETCODE` to your Scripting Define Symbols.
+```csharp
+[InitializeOnLoad]
+public static class TestTextNode
+{
+    static TestTextNode()
+    { 
+        // Create plain text nodes
+        TextNode testArg0 = TextNode.Text("Player001");
+        TextNode testArg1 = "Enemy"; // Implicit conversion from string is also supported
+
+        // Apply rich text modifiers
+        testArg0 = testArg0.BoldModifier();
+        testArg1 = testArg1.ColorModifier(Color.red);
+
+        // Create a localized text node
+        // "test_text" (en): "{0} is {1}"
+        TextNode localized = TextNode.Localized("test_text", testArg0, testArg1);
+
+        // Create a formatted text node
+        TextNode formatted = TextNode.Formatted(
+            "{0}: {1}",
+            "Kill".ColorModifier(Color.yellow),
+            localized
+        );
+
+        Debug.Log(formatted);
+
+        // Output:
+        // <color=#ffeb04ff>Kill</color>: <b>Player001</b> is <color=#ff0000ff>Enemy</color>
     }
 }
 ```
