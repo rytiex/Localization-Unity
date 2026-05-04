@@ -359,6 +359,11 @@ namespace PicoShot.Localization
         /// </summary>
         public static string DetectSystemLanguage()
         {
+            if (!_isInitialized)
+            {
+                Initialize();
+            }
+
             string systemLanguage = LanguageDefinitions.FromSystemLanguage(Application.systemLanguage);
             return ResolveTargetLanguage(systemLanguage, useFallback: true);
         }
