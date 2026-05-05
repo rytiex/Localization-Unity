@@ -280,13 +280,14 @@ namespace PicoShot.Localization
                             string key = entry.Key;
                             object value = entry.Value;
 
-                            if (!_data.Keys.Contains(key))
+                            if (!_data.LanguageData.TryGetValue(key, out var keyData))
                             {
+                                keyData = new Dictionary<string, object>();
+                                _data.LanguageData[key] = keyData;
                                 _data.Keys.Add(key);
-                                _data.LanguageData[key] = new Dictionary<string, object>();
                             }
 
-                            _data.LanguageData[key][langCode] = value;
+                            keyData[langCode] = value;
                         }
                     }
                     catch (Exception ex)
