@@ -405,6 +405,8 @@ namespace PicoShot.Localization
                     Debug.LogError($"[LocalizationEditor] Error upgrading file '{file}': {ex}");
                 }
             }
+
+            LocalizationManager.DeleteJunkFiles();
         }
 
         /// <summary>

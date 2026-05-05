@@ -127,22 +127,7 @@ namespace PicoShot.Localization
             try
             {
 #if UNITY_EDITOR
-                var junkExtensions = new[] { ".bak", ".tmp" };
-
-                var filesToDelete = Directory.EnumerateFiles(LanguagesPath, "*.*", SearchOption.TopDirectoryOnly)
-                .Where(f => junkExtensions.Contains(Path.GetExtension(f).ToLower()));
-
-                foreach (var file in filesToDelete)
-                {
-                    try
-                    {
-                        File.Delete(file);
-                    }
-                    catch (Exception)
-                    {
-
-                    }
-                }
+            DeleteJunkFiles();
 #endif
 
                 ScanAvailableLanguages();
@@ -171,6 +156,26 @@ namespace PicoShot.Localization
                 Debug.LogError(error);
                 OnLanguageLoadError?.Invoke(error);
                 _isInitialized = false;
+            }
+        }
+
+        public static void DeleteJunkFiles()
+        {
+            var junkExtensions = new[] { ".bak", ".tmp" };
+
+            var filesToDelete = Directory.EnumerateFiles(LanguagesPath, "*.*", SearchOption.TopDirectoryOnly)
+            .Where(f => junkExtensions.Contains(Path.GetExtension(f).ToLower()));
+
+            foreach (var file in filesToDelete)
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception)
+                {
+
+                }
             }
         }
 
