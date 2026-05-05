@@ -9,9 +9,12 @@ using PicoShot.Localization.Data;
 using PicoShot.Localization.Hashing;
 using PicoShot.Localization.Rtl;
 using TMPro;
-using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace PicoShot.Localization
 {
@@ -19,6 +22,9 @@ namespace PicoShot.Localization
     /// Central manager for localization system.
     /// Handles language loading, switching, and text retrieval.
     /// </summary>
+#if UNITY_EDITOR
+    [InitializeOnLoad]
+#endif
     public static class LocalizationManager
     {
         #region Events
@@ -97,9 +103,17 @@ namespace PicoShot.Localization
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
         private static void AutoInitialize()
         {
-            if (_isInitialized) return;
-            Initialize();
+            if (!_isInitialized)
+                Initialize();
         }
+
+#if UNITY_EDITOR
+        static LocalizationManager()
+        {
+            if (!_isInitialized)
+                Initialize();
+        }
+#endif
 
         /// <summary>
         /// Initializes the localization system.
@@ -112,6 +126,25 @@ namespace PicoShot.Localization
 
             try
             {
+#if UNITY_EDITOR
+                var junkExtensions = new[] { ".bak", ".tmp" };
+
+                var filesToDelete = Directory.EnumerateFiles(LanguagesPath, "*.*", SearchOption.TopDirectoryOnly)
+                .Where(f => junkExtensions.Contains(Path.GetExtension(f).ToLower()));
+
+                foreach (var file in filesToDelete)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception)
+                    {
+
+                    }
+                }
+#endif
+
                 ScanAvailableLanguages();
 
                 if (_availableLanguages.Count == 0)
@@ -159,7 +192,7 @@ namespace PicoShot.Localization
             {
                 string fileName = Path.GetFileName(file);
 
-                if (!LocaleBlocSerializer.ValidateFile(file, out string languageCode) || string.IsNullOrEmpty(languageCode))
+                if (!LocaleBlocSerializer.ValidateFile(file, out _, out string languageCode) || string.IsNullOrEmpty(languageCode))
                 {
                     Debug.LogWarning($"[LocalizationManager] Skipping invalid/corrupted file: {fileName}");
                     continue;
@@ -258,7 +291,7 @@ namespace PicoShot.Localization
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[LocalizationManager] Failed to set language to '{targetLanguage}': {ex.Message}");
+                Debug.LogError($"[LocalizationManager] Failed to set language to '{targetLanguage}': {ex}");
                 OnLanguageLoadError?.Invoke($"Failed to load language '{targetLanguage}'");
             }
         }
@@ -301,7 +334,7 @@ namespace PicoShot.Localization
                 throw new FileNotFoundException($"Locale file not found for language '{languageCode}'", filePath);
             }
 
-            var localeData = LocaleBlocSerializer.DeserializeFromFile(filePath);
+            var localeData = LocaleBlocSerializer.LoadFile(filePath, out var info);
 
             if (localeData?.Translations == null)
             {
@@ -391,7 +424,7 @@ namespace PicoShot.Localization
                         _ => args[i].ToString()
                     };
                 }
-                
+
                 text = string.Format(text, resolvedArgs);
             }
 
@@ -746,22 +779,6 @@ namespace PicoShot.Localization
         #region Editor Support
 
 #if UNITY_EDITOR
-
-        /// <summary>
-        /// Saves locale data to file (for editor use).
-        /// </summary>
-        public static void SaveLocaleToFile(string path, LocaleData data, bool compress = true)
-        {
-            LocaleBlocSerializer.SaveToFile(path, data, compress);
-        }
-
-        /// <summary>
-        /// Loads locale data from file (for editor use).
-        /// </summary>
-        public static LocaleData LoadLocaleFromFile(string path)
-        {
-            return LocaleBlocSerializer.DeserializeFromFile(path);
-        }
 
         /// <summary>
         /// Gets the file path for a language code (for editor use).
