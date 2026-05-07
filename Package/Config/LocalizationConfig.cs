@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO.Compression;
 using UnityEngine;
 
 namespace PicoShot.Localization.Config

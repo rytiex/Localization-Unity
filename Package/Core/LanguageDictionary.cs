@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using PicoShot.Localization.Hashing;
-using Unity.Collections.LowLevel.Unsafe;
 
 namespace PicoShot.Localization
 {

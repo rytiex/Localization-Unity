@@ -216,7 +216,7 @@ namespace PicoShot.Localization.Bloc
             uint stringPoolOffset = contentReader.ReadUInt32();
 
             contentStream.Position = stringPoolOffset;
-            var stringPool = readStringPool(contentReader, stringCount);
+            var stringPool = ReadStringPool(contentReader, stringCount);
             contentStream.Position = 32;
 
             info.EntryCount = entryCount;
@@ -259,7 +259,7 @@ namespace PicoShot.Localization.Bloc
             }
         }
 
-        private static string[] readStringPool(BinaryReader reader, uint count)
+        private static string[] ReadStringPool(BinaryReader reader, uint count)
         {
             var pool = new string[count];
 
