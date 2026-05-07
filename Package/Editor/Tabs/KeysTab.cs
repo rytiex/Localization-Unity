@@ -19,6 +19,10 @@ namespace PicoShot.Localization.Editor.Tabs
         private string _newKey = "";
         private bool _pendingDelete;
 
+        private static Texture2D _transparentTexture;
+        private static GUIStyle _keyButtonStyleNormal;
+        private static GUIStyle _keyButtonStyleSelected;
+
         public KeysTab(LocalizationEditor editor, LanguageEditorData data) : base(editor, data)
         {
             _translationService = new TranslationService(data);
@@ -673,26 +677,44 @@ namespace PicoShot.Localization.Editor.Tabs
 
         private static GUIStyle GetKeyButtonStyle(bool isSelected)
         {
-            Texture2D transparentTexture = new Texture2D(1, 1);
-            transparentTexture.SetPixel(0, 0, new Color(0, 0, 0, 0));
-            transparentTexture.Apply();
-
-            GUIStyle style = new GUIStyle(EditorStyles.miniButton)
+            if (_transparentTexture == null)
             {
-                alignment = TextAnchor.MiddleLeft,
-                padding = new RectOffset(0, 0, 2, 2),
-                margin = new RectOffset(0, 0, 2, 2),
-                normal =
-                {
-                    textColor = isSelected ? Color.green : EditorStyles.label.normal.textColor,
-                    background = transparentTexture
-                },
-                hover = { textColor = Color.green },
-                active = { textColor = Color.green },
-                richText = true
-            };
+                _transparentTexture = new Texture2D(1, 1);
+                _transparentTexture.SetPixel(0, 0, new Color(0, 0, 0, 0));
+                _transparentTexture.Apply();
+            }
 
-            return style;
+            if (_keyButtonStyleNormal == null)
+            {
+                _keyButtonStyleNormal = new GUIStyle(EditorStyles.miniButton)
+                {
+                    alignment = TextAnchor.MiddleLeft,
+                    padding = new RectOffset(0, 0, 2, 2),
+                    margin = new RectOffset(0, 0, 2, 2),
+                    normal =
+                    {
+                        textColor = EditorStyles.label.normal.textColor,
+                        background = _transparentTexture
+                    },
+                    hover = { textColor = Color.green },
+                    active = { textColor = Color.green },
+                    richText = true
+                };
+            }
+
+            if (_keyButtonStyleSelected == null)
+            {
+                _keyButtonStyleSelected = new GUIStyle(_keyButtonStyleNormal)
+                {
+                    normal =
+                    {
+                        textColor = Color.green,
+                        background = _transparentTexture
+                    }
+                };
+            }
+
+            return isSelected ? _keyButtonStyleSelected : _keyButtonStyleNormal;
         }
     }
 }
