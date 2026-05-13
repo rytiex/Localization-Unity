@@ -161,6 +161,9 @@ namespace PicoShot.Localization
 
         public static void DeleteJunkFiles()
         {
+            if (!Directory.Exists(LanguagesPath))
+                return;
+
             var junkExtensions = new[] { ".bak", ".tmp" };
 
             var filesToDelete = Directory.EnumerateFiles(LanguagesPath, "*.*", SearchOption.TopDirectoryOnly)
